@@ -1,0 +1,19 @@
+# 依賴庫
+node_modules/
+
+# 編譯產物
+dist/
+
+# 作業系統暫存
+.DS_Store
+Thumbs.db
+
+# yt-dlp 執行檔 (我們已改為啟動時自動下載)
+yt-dlp.exe
+yt-dlp
+
+# 使用者本地日誌或下載暫存
+.yt-audio-extractor/
+
+deno.exe
+*.exe

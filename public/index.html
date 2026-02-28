@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kevin's YT Downloader</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-image: url('./bg.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: grid;
+            place-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 480px;
+        }
+
+        h1 {
+            margin: 0 0 1.5rem 0;
+            font-size: 1.5rem;
+            color: #1e293b;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        /* [新增] 進度條樣式 */
+        #progressContainer {
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #475569;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s ease;
+        }
+
+        #logs {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #1e293b;
+            color: #a5f3fc;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+            display: none;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>YT Audio Extractor</h1>
+
+        <input type="text" id="url" placeholder="請貼上 YouTube 網址..." />
+
+        <div style="display: flex; gap: 10px; margin-bottom: 1rem;">
+            <button id="btnMp3" style="flex: 1;" onclick="startDownload('mp3')">Download MP3</button>
+            <button id="btnMp4" style="flex: 1; background: #059669;" onclick="startDownload('mp4')">Download
+                MP4</button>
+        </div>
+
+        <div id="progressContainer">
+            <div class="progress-text">
+                <span id="progressPercent">0%</span>
+                <span id="progressEta">準備中...</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div id="progressBar"></div>
+            </div>
+        </div>
+
+        <div id="logs"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); // 初始化 Socket 連線
+        const urlInput = document.getElementById('url');
+        const logs = document.getElementById('logs');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressEta = document.getElementById('progressEta');
+
+        socket.on('connect', () => {
+            console.log('Socket 已連線');
+        });
+
+        // [核心] 監聽來自後端的進度推播
+        socket.on('downloadProgress', (data) => {
+            progressContainer.style.display = 'block';
+            if (data.percent) {
+                const p = Math.floor(data.percent);
+                progressBar.style.width = p + '%';
+                progressPercent.innerText = p + '%';
+                // 優化提示文字
+                progressEta.innerText = data.percent < 100 ? '正在下載數據...' : '正在合併高品質影音，請稍候...';
+            }
+        });
+
+        // 修改 startDownload 使其接收 type 參數
+        async function startDownload(type) {
+            const url = urlInput.value;
+            if (!url) return;
+
+            // 確保這裡抓到的 ID 與 HTML 一致
+            const btnMp3 = document.getElementById('btnMp3');
+            const btnMp4 = document.getElementById('btnMp4');
+
+            btnMp3.disabled = true;
+            btnMp4.disabled = true;
+
+            logs.style.display = 'block';
+            logs.innerText = `正在請求下載 ${type.toUpperCase()}...`;
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+
+            try {
+                const res = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // [關鍵] 將格式傳送給後端
+                    body: JSON.stringify({ url: url, format: type })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    logs.innerHTML = `[成功] ${type.toUpperCase()} 下載完成！<br><span id="openFolder" style="text-decoration: underline; cursor: pointer; color: #38bdf8;">點此開啟下載資料夾</span>`;
+                    logs.style.color = '#86efac';
+                    document.getElementById('openFolder').onclick = async () => {
+                        await fetch('/api/open-folder');
+                    };
+                    setTimeout(() => { progressContainer.style.display = 'none'; }, 5000);
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (err) {
+                logs.innerText = `[錯誤] ${err.message}`;
+                logs.style.color = '#fda4af';
+            } finally {
+                btnMp3.disabled = false;
+                btnMp4.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>
