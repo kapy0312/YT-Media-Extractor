@@ -105,52 +105,95 @@ app.get('/api/open-folder', (req, res) => {
 // 【終極魔改】攔截 YouTube Cookie 系統 (修復 Mojo 崩潰與逾時)
 // ==========================================
 app.get('/api/login', async (req, res) => {
-    // 【防呆機制 1】取消逾時限制：讓使用者有無限充裕的時間慢慢打密碼和驗證碼
     req.setTimeout(0); 
 
     const loginWin = new BrowserWindow({
         width: 800,
         height: 700,
         autoHideMenuBar: true,
-        title: '請登入您的 YouTube 帳號 (完成後請直接關閉視窗)',
+        title: 'YouTube 登入中 (偵測到登入後將自動關閉)',
         webPreferences: { nodeIntegration: false, contextIsolation: true }
     });
 
     await loginWin.loadURL('https://www.youtube.com');
 
-    // 【防呆機制 2】改用 'close' 事件並攔截，避免視窗完全關閉導致通訊崩潰
-    loginWin.on('close', async (event) => {
-        event.preventDefault(); // 先暫停視窗的關閉動作
+    // 用來停止輪詢的變數
+    let checkInterval;
 
+    // 核心功能：檢查 Cookie 並執行關閉
+    async function checkLoginAndClose() {
         try {
-            // 趁視窗還活著，趕快提取 Cookie
             const cookies = await session.defaultSession.cookies.get({ url: 'https://www.youtube.com' });
-            const isLoggedIn = cookies.some(c => c.name === 'LOGIN_INFO' || c.name === 'SAPISID');
+            // SID 是 YouTube 登入最關鍵的憑證
+            const isLoggedIn = cookies.some(c => c.name === 'SID');
 
-            let netscapeFormat = "# Netscape HTTP Cookie File\n# This is a generated file! Do not edit.\n\n";
-            cookies.forEach(c => {
-                let domain = c.domain;
-                if (!domain.startsWith('.') && !c.hostOnly) domain = '.' + domain;
-                const includeSubdomains = domain.startsWith('.') ? 'TRUE' : 'FALSE';
-                const path = c.path || '/';
-                const secure = c.secure ? 'TRUE' : 'FALSE';
-                const expiry = c.expirationDate ? Math.floor(c.expirationDate) : Math.floor(Date.now() / 1000) + 31536000;
-                
-                netscapeFormat += `${domain}\t${includeSubdomains}\t${path}\t${secure}\t${expiry}\t${c.name}\t${c.value}\n`;
-            });
+            if (isLoggedIn) {
+                // 1. 停止檢查
+                clearInterval(checkInterval);
 
-            fs.writeFileSync(COOKIE_FILE_PATH, netscapeFormat, 'utf-8');
-            console.log(`[系統] Cookie 檔案已更新！是否登入成功: ${isLoggedIn}`);
-            
-            // 將成功訊息回傳給前端按鈕
-            if (!res.headersSent) res.json({ success: true, isLoggedIn: isLoggedIn });
-        } catch (error) {
-            console.error('[系統] Cookie 提取失敗:', error);
-            if (!res.headersSent) res.status(500).json({ error: error.message });
-        } finally {
-            // 資料抓完、前端按鈕也解除鎖定後，我們再真正把視窗強制銷毀
-            loginWin.destroy(); 
+                // 2. 轉換並儲存 Cookie
+                let netscapeFormat = "# Netscape HTTP Cookie File\n# This is a generated file! Do not edit.\n\n";
+                cookies.forEach(c => {
+                    let domain = c.domain;
+                    if (!domain.startsWith('.') && !c.hostOnly) domain = '.' + domain;
+                    const includeSubdomains = domain.startsWith('.') ? 'TRUE' : 'FALSE';
+                    const path = c.path || '/';
+                    const secure = c.secure ? 'TRUE' : 'FALSE';
+                    const expiry = c.expirationDate ? Math.floor(c.expirationDate) : Math.floor(Date.now() / 1000) + 31536000;
+                    netscapeFormat += `${domain}\t${includeSubdomains}\t${path}\t${secure}\t${expiry}\t${c.name}\t${c.value}\n`;
+                });
+
+                fs.writeFileSync(COOKIE_FILE_PATH, netscapeFormat, 'utf-8');
+                console.log(`[系統] 偵測到登入成功，已自動儲存並關閉視窗`);
+
+                // 3. 在 YouTube 頁面上顯示成功訊息給使用者看 (選填)
+                loginWin.webContents.executeJavaScript(`
+                    const div = document.createElement('div');
+                    div.id = 'success-tip';
+                    div.innerHTML = "✅ 登入成功！正在自動關閉視窗...";
+                    div.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#10b981; color:white; text-align:center; padding:15px; z-index:99999; font-size:20px; font-weight:bold;";
+                    document.body.appendChild(div);
+                `).catch(() => {});
+
+                // 4. 回傳給前端並關閉
+                if (!res.headersSent) {
+                    res.json({ success: true, isLoggedIn: true });
+                }
+
+                // 延遲一秒關閉，讓使用者看得到那行綠色的字
+                setTimeout(() => {
+                    if (!loginWin.isDestroyed()) loginWin.destroy();
+                }, 1000);
+
+                return true;
+            }
+        } catch (e) {
+            console.error('檢查 Cookie 時出錯:', e);
         }
+        return false;
+    }
+
+    // 每 1.5 秒自動檢查一次 Cookie 狀態
+    checkInterval = setInterval(() => {
+        if (!loginWin.isDestroyed()) {
+            checkLoginAndClose();
+        } else {
+            clearInterval(checkInterval);
+        }
+    }, 1500);
+
+    // 預防萬一：使用者手動關閉視窗也要處理
+    loginWin.on('close', async (event) => {
+        clearInterval(checkInterval);
+        if (res.headersSent) return;
+        
+        event.preventDefault(); // 攔截關閉
+        // 最後檢查一次有沒有登入
+        const cookies = await session.defaultSession.cookies.get({ url: 'https://www.youtube.com' });
+        const isLoggedIn = cookies.some(c => c.name === 'SID');
+        
+        res.json({ success: true, isLoggedIn: isLoggedIn });
+        loginWin.destroy(); // 正式銷毀
     });
 });
 
@@ -226,6 +269,13 @@ app.post('/api/download', async (req, res) => {
 
         ytDlpProcess.ytDlpProcess.stderr.on('data', (buffer) => {
             const text = buffer.toString('utf-8');
+
+            // 【自動偵測過期】檢查是否有「請登入」的關鍵字
+            if (text.includes('Sign in to confirm') || text.includes('confirm you are not a bot')) {
+                console.log('[系統] 偵測到 Cookie 可能已過期，通知前端...');
+                io.emit('cookieExpired'); // 發送過期訊號
+            }
+
             if (!text.includes('%')) {
                 console.error(`\n[yt-dlp 訊息] ${text.trim()}`);
             }

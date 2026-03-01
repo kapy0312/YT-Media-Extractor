@@ -112,6 +112,21 @@
             max-height: 150px;
             overflow-y: auto;
         }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+                background: #b91c1c;
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
     </style>
 </head>
 
@@ -220,23 +235,39 @@
             }
         });
 
+        // 【新增】監聽 Cookie 過期訊號
+        socket.on('cookieExpired', () => {
+            // 彈出強烈提醒
+            alert('⚠️ 偵測到您的 YouTube 登入憑證已過期！\n\n這會導致無法下載 1080p/4K 或下載失敗。\n請點擊「登入解鎖 4K」重新完成登入。');
+
+            // 自動將 UI 恢復成未登入狀態，引導使用者去按
+            updateLoginUI(false);
+
+            // 變更按鈕文字加強提醒
+            const btnLogin = document.getElementById('btnLogin');
+            btnLogin.innerText = '‼️ 憑證過期，點此重登';
+            btnLogin.style.animation = 'pulse 1s infinite'; // 讓它閃爍吸引注意
+        });
+
         // 新增登入視窗邏輯
         async function openLoginWindow() {
             const btn = document.getElementById('btnLogin');
-            btn.innerText = '等待登入...';
+            btn.innerText = '等待登入中...'; // 調整文字
             btn.disabled = true;
-            btn.style.opacity = '0.7';
 
             try {
-                // ✅ 【補回關鍵程式碼】呼叫後端開啟視窗，並等待回傳結果
                 const res = await fetch('/api/login');
                 const data = await res.json();
 
                 if (data.success && data.isLoggedIn) {
-                    updateLoginUI(true); // 使用統一的 UI 更新函式
+                    updateLoginUI(true);
+                    // 這裡可以加一個小的成功提示
+                    logs.innerText = "✅ 憑證載入成功！現在可以下載 4K 影片了。";
+                    logs.style.display = 'block';
+                    logs.style.color = '#86efac';
                 } else {
                     updateLoginUI(false);
-                    alert('您似乎沒有完成登入，或已取消操作。');
+                    alert('未完成登入操作。');
                 }
             } catch (err) {
                 alert('登入視窗發生錯誤');
