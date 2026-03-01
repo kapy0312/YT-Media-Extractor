@@ -121,6 +121,15 @@
 
         <input type="text" id="url" placeholder="請貼上 YouTube 網址..." />
 
+        <details style="margin-bottom: 1rem; text-align: left; font-size: 0.9rem;">
+            <summary style="cursor: pointer; color: #475569; font-weight: bold; margin-bottom: 0.5rem;">⚙️ 進階：貼上 Cookie
+                解鎖 4K/1080p 高畫質 (選填)</summary>
+            <textarea id="cookieInput" placeholder="請使用 Get cookies.txt LOCALLY 擴充功能匯出 Cookie，並全選貼在此處..."
+                style="width: 100%; height: 80px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-family: monospace; font-size: 0.8rem;"></textarea>
+            <div style="color: #64748b; font-size: 0.8rem; margin-top: 4px;">💡 提示：若不貼上，程式仍可運作，但可能只會下載 360p 或 720p。
+            </div>
+        </details>
+
         <div style="display: flex; gap: 10px; margin-bottom: 1rem;">
             <button id="btnMp3" style="flex: 1;" onclick="startDownload('mp3')">Download MP3</button>
             <button id="btnMp4" style="flex: 1; background: #059669;" onclick="startDownload('mp4')">Download
@@ -168,27 +177,30 @@
 
         // 修改 startDownload 使其接收 type 參數
         async function startDownload(type) {
+            const urlInput = document.getElementById('url');
             const url = urlInput.value;
+            // 取得使用者貼上的 Cookie 內容
+            const cookieData = document.getElementById('cookieInput').value;
+
             if (!url) return;
 
-            // 確保這裡抓到的 ID 與 HTML 一致
             const btnMp3 = document.getElementById('btnMp3');
             const btnMp4 = document.getElementById('btnMp4');
 
             btnMp3.disabled = true;
             btnMp4.disabled = true;
-
             logs.style.display = 'block';
             logs.innerText = `正在請求下載 ${type.toUpperCase()}...`;
             progressContainer.style.display = 'block';
             progressBar.style.width = '0%';
+            progressPercent.innerText = '0%';
 
             try {
                 const res = await fetch('/api/download', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    // [關鍵] 將格式傳送給後端
-                    body: JSON.stringify({ url: url, format: type })
+                    // [關鍵] 將 url, format, 以及 cookieData 一起傳給後端
+                    body: JSON.stringify({ url: url, format: type, cookieData: cookieData })
                 });
 
                 const data = await res.json();

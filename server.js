@@ -97,89 +97,23 @@ app.get('/api/open-folder', (req, res) => {
 });
 
 app.post('/api/download', async (req, res) => {
-    const { url, format } = req.body;
+    // 接收來自前端的 url, 格式, 和 cookie 文字
+    const { url, format, cookieData } = req.body;
     if (!url) return res.status(400).json({ error: 'URL is required' });
 
     const downloadFormat = format || 'mp3';
-    console.log(`[Job] Starting download (${downloadFormat}): ${url}`);
+    console.log(`\n[Job] Starting download (${downloadFormat}): ${url}`);
 
-    // try {
-
-    //     let args = [
-    //         url,
-    //         '--encoding', 'utf-8',
-    //         '--ffmpeg-location', getFfmpegPath(),
-    //         '-P', DOWNLOAD_DIR,
-    //         '--no-playlist',
-    //         '--progress',
-    //         '--newline',
-    //         '--output', '%(title)s.%(ext)s',
-    //         // 改回 android 確保相容性，不用加 cookie 也能下載多數影片
-    //         '--extractor-args', 'youtube:player_client=android',
-    //         '--no-check-certificates'
-    //         // [刪除] 把 '--cookies-from-browser' 這行刪掉
-    //     ];
-
-    //     if (downloadFormat === 'mp4') {
-    //         // [關鍵修正 2] 優化格式選擇：優先拿原生高畫質 MP4，若沒有才拿其他格式硬轉，降低 FFmpeg 失敗率
-    //         args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best');
-    //         args.push('--merge-output-format', 'mp4');
-    //     } else {
-    //         args.push('-x', '--audio-format', 'mp3');
-    //     }
-
-    //     const ytDlpProcess = ytDlpWrap.exec(args);
-
-    //     // --- 以下監聽邏輯與您原本的程式碼完全相同 ---
-    //     ytDlpProcess.ytDlpProcess.stdout.on('data', (buffer) => {
-    //         const text = buffer.toString('utf-8');
-    //         const match = text.match(/(\d+\.\d+)%/);
-    //         if (match) {
-    //             const percent = parseFloat(match[1]);
-    //             process.stdout.write(`\r>>> Progress (${downloadFormat}): ${percent}%   `);
-    //             io.emit('downloadProgress', { percent, eta: '下載中...' });
-    //         }
-    //     });
-
-    //     ytDlpProcess.ytDlpProcess.stderr.on('data', (buffer) => {
-    //         const text = buffer.toString('utf-8');
-    //         const match = text.match(/(\d+\.\d+)%/);
-    //         if (match) {
-    //             const percent = parseFloat(match[1]);
-    //             io.emit('downloadProgress', { percent, eta: '下載中...' });
-    //         }
-    //     });
-
-    //     ytDlpProcess.on('close', () => {
-    //         process.stdout.write(`\n[Job] ${downloadFormat.toUpperCase()} Task Completed\n`);
-    //         io.emit('downloadProgress', { percent: 100, eta: '完成' });
-    //         res.json({ success: true });
-    //     });
-
-    //     ytDlpProcess.on('error', (err) => {
-    //         console.error('\n[Job] Failed:', err.message);
-    //         res.status(500).json({ error: err.message });
-    //     });
-
-    // } catch (error) {
-    //     res.status(500).json({ error: error.message });
-    // }
+    // 【準備臨時 Cookie 檔案】
+    let tempCookiePath = null;
+    if (cookieData && cookieData.trim() !== '') {
+        // 在隱藏資料夾內產生一個隨機名稱的暫存檔
+        tempCookiePath = path.join(APP_DATA_DIR, `temp_cookie_${Date.now()}.txt`);
+        fs.writeFileSync(tempCookiePath, cookieData);
+        console.log(`[Job] 使用者提供了 Cookie，已建立暫存檔解鎖高畫質`);
+    }
 
     try {
-        // let args = [
-        //     url,
-        //     '--encoding', 'utf-8',
-        //     '--ffmpeg-location', getFfmpegPath(),
-        //     '-P', DOWNLOAD_DIR,
-        //     '--no-playlist',
-        //     '--progress',
-        //     '--newline',
-        //     '--output', '%(title)s.%(ext)s',
-        //     // 【最強無 Cookie 方案】改用 tv,web 客戶端，目前繞過 YouTube 驗證的成功率最高
-        //     '--extractor-args', 'youtube:player_client=tv,web',
-        //     '--no-check-certificates'
-        // ];
-
         let args = [
             url,
             '--encoding', 'utf-8',
@@ -188,21 +122,26 @@ app.post('/api/download', async (req, res) => {
             '--no-playlist',
             '--progress',
             '--newline',
-            '--output', '%(title)s.%(ext)s',
-            // 不加 Cookie，只求最穩定下載
-            '--extractor-args', 'youtube:player_client=android'
+            // 【修復 Bug】在檔名加上 (Video) 或 (Audio)，防止 MP4 被 MP3 的暫存檔覆蓋！
+            '--output', downloadFormat === 'mp4' ? '%(title)s (Video).%(ext)s' : '%(title)s (Audio).%(ext)s',
+            '--extractor-args', 'youtube:player_client=tv,web',
+            '--no-check-certificates'
         ];
+
+        // 如果有 Cookie，就把參數加進去
+        if (tempCookiePath) {
+            args.push('--cookies', tempCookiePath);
+        }
 
         if (downloadFormat === 'mp4') {
             args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best');
             args.push('--merge-output-format', 'mp4');
         } else {
-            args.push('-x', '--audio-format', 'mp3');
+            args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0');
         }
 
         const ytDlpProcess = ytDlpWrap.exec(args);
 
-        // 監聽正常進度
         ytDlpProcess.ytDlpProcess.stdout.on('data', (buffer) => {
             const text = buffer.toString('utf-8');
             const match = text.match(/(\d+\.\d+)%/);
@@ -213,15 +152,11 @@ app.post('/api/download', async (req, res) => {
             }
         });
 
-        // 【關鍵修復】監聽錯誤訊息，並印在黑視窗上
         ytDlpProcess.ytDlpProcess.stderr.on('data', (buffer) => {
             const text = buffer.toString('utf-8');
-
-            // 如果不是進度條的訊息，就當作錯誤/警告印出來
             if (!text.includes('%')) {
                 console.error(`\n[yt-dlp 訊息] ${text.trim()}`);
             }
-
             const match = text.match(/(\d+\.\d+)%/);
             if (match) {
                 const percent = parseFloat(match[1]);
@@ -229,25 +164,33 @@ app.post('/api/download', async (req, res) => {
             }
         });
 
-        // 【關鍵修復】判斷離開代碼，避免明明失敗卻回傳成功
         ytDlpProcess.on('close', (code) => {
+            // 【安全清理】無論成功或失敗，都把臨時的 Cookie 檔案刪除
+            if (tempCookiePath && fs.existsSync(tempCookiePath)) {
+                fs.unlinkSync(tempCookiePath);
+            }
+
             if (code === 0) {
                 process.stdout.write(`\n[Job] ${downloadFormat.toUpperCase()} Task Completed\n`);
                 io.emit('downloadProgress', { percent: 100, eta: '完成' });
                 res.json({ success: true });
             } else {
                 console.error(`\n[Job] Failed with exit code ${code}`);
-                // 若代碼不是 0，通知前端發生錯誤
                 if (!res.headersSent) res.status(500).json({ error: `下載失敗 (Exit code: ${code})` });
             }
         });
 
         ytDlpProcess.on('error', (err) => {
+            // 【安全清理】發生崩潰錯誤時也要刪除
+            if (tempCookiePath && fs.existsSync(tempCookiePath)) {
+                fs.unlinkSync(tempCookiePath);
+            }
             console.error('\n[Job] Failed:', err.message);
             if (!res.headersSent) res.status(500).json({ error: err.message });
         });
 
     } catch (error) {
+        if (tempCookiePath && fs.existsSync(tempCookiePath)) fs.unlinkSync(tempCookiePath);
         if (!res.headersSent) res.status(500).json({ error: error.message });
     }
 });
