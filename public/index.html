@@ -119,16 +119,23 @@
     <div class="card">
         <h1>YT Audio Extractor</h1>
 
-        <input type="text" id="url" placeholder="請貼上 YouTube 網址..." />
+        <div style="display: flex; gap: 10px; margin-bottom: 1.5rem;">
+            <input type="text" id="url" placeholder="請貼上 YouTube 影片網址..."
+                style="flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none;">
 
-        <details style="margin-bottom: 1rem; text-align: left; font-size: 0.9rem;">
-            <summary style="cursor: pointer; color: #475569; font-weight: bold; margin-bottom: 0.5rem;">⚙️ 進階：貼上 Cookie
-                解鎖 4K/1080p 高畫質 (選填)</summary>
-            <textarea id="cookieInput" placeholder="請使用 Get cookies.txt LOCALLY 擴充功能匯出 Cookie，並全選貼在此處..."
-                style="width: 100%; height: 80px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-family: monospace; font-size: 0.8rem;"></textarea>
-            <div style="color: #64748b; font-size: 0.8rem; margin-top: 4px;">💡 提示：若不貼上，程式仍可運作，但可能只會下載 360p 或 720p。
+            <div style="display: flex; gap: 5px;">
+                <button id="btnLogin" onclick="openLoginWindow()"
+                    style="background: #ef4444; color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 5px;">
+                    登入解鎖 4K
+                </button>
+                <button id="btnLogout" onclick="logout()"
+                    style="display: none; background: #64748b; color: white; border: none; padding: 0 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;"
+                    title="登出並清除 Cookie">
+                    登出
+                </button>
             </div>
-        </details>
+
+        </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 1rem;">
             <button id="btnMp3" style="flex: 1;" onclick="startDownload('mp3')">Download MP3</button>
@@ -159,6 +166,44 @@
         const progressPercent = document.getElementById('progressPercent');
         const progressEta = document.getElementById('progressEta');
 
+        // 網頁載入時，檢查登入狀態
+        window.onload = async () => {
+            try {
+                const res = await fetch('/api/check-login');
+                const data = await res.json();
+                updateLoginUI(data.isLoggedIn);
+            } catch (err) {
+                console.error('無法檢查登入狀態', err);
+            }
+        };
+
+        // 更新 UI 狀態的獨立函式
+        function updateLoginUI(isLoggedIn) {
+            const btnLogin = document.getElementById('btnLogin');
+            const btnLogout = document.getElementById('btnLogout');
+            if (isLoggedIn) {
+                btnLogin.innerText = '✅ 已登入 (重整憑證)';
+                btnLogin.style.background = '#10b981';
+                btnLogout.style.display = 'block';
+            } else {
+                btnLogin.innerText = '登入解鎖 4K';
+                btnLogin.style.background = '#ef4444';
+                btnLogout.style.display = 'none';
+            }
+        }
+
+        // 登出功能
+        async function logout() {
+            if (!confirm('確定要清除登入憑證嗎？(這將導致無法下載 4K 影片)')) return;
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                updateLoginUI(false);
+                alert('已成功登出並清除 Cookie！');
+            } catch (err) {
+                alert('登出失敗');
+            }
+        }
+
         socket.on('connect', () => {
             console.log('Socket 已連線');
         });
@@ -175,13 +220,36 @@
             }
         });
 
+        // 新增登入視窗邏輯
+        async function openLoginWindow() {
+            const btn = document.getElementById('btnLogin');
+            btn.innerText = '等待登入...';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+
+            try {
+                // ✅ 【補回關鍵程式碼】呼叫後端開啟視窗，並等待回傳結果
+                const res = await fetch('/api/login');
+                const data = await res.json();
+
+                if (data.success && data.isLoggedIn) {
+                    updateLoginUI(true); // 使用統一的 UI 更新函式
+                } else {
+                    updateLoginUI(false);
+                    alert('您似乎沒有完成登入，或已取消操作。');
+                }
+            } catch (err) {
+                alert('登入視窗發生錯誤');
+                btn.innerText = '登入解鎖 4K';
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        }
+
         // 修改 startDownload 使其接收 type 參數
         async function startDownload(type) {
             const urlInput = document.getElementById('url');
             const url = urlInput.value;
-            // 取得使用者貼上的 Cookie 內容
-            const cookieData = document.getElementById('cookieInput').value;
-
             if (!url) return;
 
             const btnMp3 = document.getElementById('btnMp3');
@@ -199,10 +267,11 @@
                 const res = await fetch('/api/download', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    // [關鍵] 將 url, format, 以及 cookieData 一起傳給後端
-                    body: JSON.stringify({ url: url, format: type, cookieData: cookieData })
+                    // [關鍵] 不用再傳 Cookie 文字了，後端會自己去讀檔案
+                    body: JSON.stringify({ url: url, format: type })
                 });
 
+                // ✅ 【關鍵修復】補上這行，把伺服器的回應解析成 data
                 const data = await res.json();
 
                 if (data.success) {

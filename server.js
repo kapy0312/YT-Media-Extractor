@@ -10,6 +10,9 @@ import ffmpegPath from 'ffmpeg-static';
 import { exec } from 'child_process'; // 用於執行系統指令
 import util from 'util';
 
+// 【神級新增】從 Electron 匯入視窗與 session 模組
+import { BrowserWindow, session } from 'electron';
+
 process.env.PYTHONIOENCODING = 'utf-8';
 process.env.LANG = 'zh_TW.UTF-8';
 
@@ -22,6 +25,8 @@ const APP_DATA_DIR = path.join(os.homedir(), '.yt-audio-extractor');
 if (!fs.existsSync(APP_DATA_DIR)) {
     fs.mkdirSync(APP_DATA_DIR, { recursive: true });
 }
+
+const COOKIE_FILE_PATH = path.join(APP_DATA_DIR, 'cookies.txt');
 
 // [關鍵新增] 將隱藏資料夾加入環境變數 PATH，讓 yt-dlp 能自動偵測到 deno.exe
 process.env.PATH = `${APP_DATA_DIR}${path.delimiter}${process.env.PATH}`;
@@ -96,22 +101,89 @@ app.get('/api/open-folder', (req, res) => {
     res.json({ success: true });
 });
 
+// ==========================================
+// 【終極魔改】攔截 YouTube Cookie 系統 (修復 Mojo 崩潰與逾時)
+// ==========================================
+app.get('/api/login', async (req, res) => {
+    // 【防呆機制 1】取消逾時限制：讓使用者有無限充裕的時間慢慢打密碼和驗證碼
+    req.setTimeout(0); 
+
+    const loginWin = new BrowserWindow({
+        width: 800,
+        height: 700,
+        autoHideMenuBar: true,
+        title: '請登入您的 YouTube 帳號 (完成後請直接關閉視窗)',
+        webPreferences: { nodeIntegration: false, contextIsolation: true }
+    });
+
+    await loginWin.loadURL('https://www.youtube.com');
+
+    // 【防呆機制 2】改用 'close' 事件並攔截，避免視窗完全關閉導致通訊崩潰
+    loginWin.on('close', async (event) => {
+        event.preventDefault(); // 先暫停視窗的關閉動作
+
+        try {
+            // 趁視窗還活著，趕快提取 Cookie
+            const cookies = await session.defaultSession.cookies.get({ url: 'https://www.youtube.com' });
+            const isLoggedIn = cookies.some(c => c.name === 'LOGIN_INFO' || c.name === 'SAPISID');
+
+            let netscapeFormat = "# Netscape HTTP Cookie File\n# This is a generated file! Do not edit.\n\n";
+            cookies.forEach(c => {
+                let domain = c.domain;
+                if (!domain.startsWith('.') && !c.hostOnly) domain = '.' + domain;
+                const includeSubdomains = domain.startsWith('.') ? 'TRUE' : 'FALSE';
+                const path = c.path || '/';
+                const secure = c.secure ? 'TRUE' : 'FALSE';
+                const expiry = c.expirationDate ? Math.floor(c.expirationDate) : Math.floor(Date.now() / 1000) + 31536000;
+                
+                netscapeFormat += `${domain}\t${includeSubdomains}\t${path}\t${secure}\t${expiry}\t${c.name}\t${c.value}\n`;
+            });
+
+            fs.writeFileSync(COOKIE_FILE_PATH, netscapeFormat, 'utf-8');
+            console.log(`[系統] Cookie 檔案已更新！是否登入成功: ${isLoggedIn}`);
+            
+            // 將成功訊息回傳給前端按鈕
+            if (!res.headersSent) res.json({ success: true, isLoggedIn: isLoggedIn });
+        } catch (error) {
+            console.error('[系統] Cookie 提取失敗:', error);
+            if (!res.headersSent) res.status(500).json({ error: error.message });
+        } finally {
+            // 資料抓完、前端按鈕也解除鎖定後，我們再真正把視窗強制銷毀
+            loginWin.destroy(); 
+        }
+    });
+});
+
+// ==========================================
+// 【新增】檢查目前是否有存活的 Cookie
+// ==========================================
+app.get('/api/check-login', (req, res) => {
+    // 只要檔案存在，我們就當作已登入 (若過期，使用者可手動重新登入)
+    const isLoggedIn = fs.existsSync(COOKIE_FILE_PATH);
+    res.json({ isLoggedIn });
+});
+
+// ==========================================
+// 【新增】登出 (刪除 Cookie 檔案)
+// ==========================================
+app.post('/api/logout', (req, res) => {
+    try {
+        if (fs.existsSync(COOKIE_FILE_PATH)) {
+            fs.unlinkSync(COOKIE_FILE_PATH);
+        }
+        console.log('[系統] 使用者已登出，Cookie 已清除');
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/api/download', async (req, res) => {
-    // 接收來自前端的 url, 格式, 和 cookie 文字
-    const { url, format, cookieData } = req.body;
+    const { url, format } = req.body;
     if (!url) return res.status(400).json({ error: 'URL is required' });
 
     const downloadFormat = format || 'mp3';
     console.log(`\n[Job] Starting download (${downloadFormat}): ${url}`);
-
-    // 【準備臨時 Cookie 檔案】
-    let tempCookiePath = null;
-    if (cookieData && cookieData.trim() !== '') {
-        // 在隱藏資料夾內產生一個隨機名稱的暫存檔
-        tempCookiePath = path.join(APP_DATA_DIR, `temp_cookie_${Date.now()}.txt`);
-        fs.writeFileSync(tempCookiePath, cookieData);
-        console.log(`[Job] 使用者提供了 Cookie，已建立暫存檔解鎖高畫質`);
-    }
 
     try {
         let args = [
@@ -122,15 +194,15 @@ app.post('/api/download', async (req, res) => {
             '--no-playlist',
             '--progress',
             '--newline',
-            // 【修復 Bug】在檔名加上 (Video) 或 (Audio)，防止 MP4 被 MP3 的暫存檔覆蓋！
             '--output', downloadFormat === 'mp4' ? '%(title)s (Video).%(ext)s' : '%(title)s (Audio).%(ext)s',
             '--extractor-args', 'youtube:player_client=tv,web',
             '--no-check-certificates'
         ];
 
-        // 如果有 Cookie，就把參數加進去
-        if (tempCookiePath) {
-            args.push('--cookies', tempCookiePath);
+        // 【關鍵】如果專案資料夾裡有我們攔截產生的 cookies.txt，直接餵給它！
+        if (fs.existsSync(COOKIE_FILE_PATH)) {
+            console.log(`[Job] 偵測到 Cookie 憑證，解鎖最高畫質與音質...`);
+            args.push('--cookies', COOKIE_FILE_PATH);
         }
 
         if (downloadFormat === 'mp4') {
@@ -166,9 +238,9 @@ app.post('/api/download', async (req, res) => {
 
         ytDlpProcess.on('close', (code) => {
             // 【安全清理】無論成功或失敗，都把臨時的 Cookie 檔案刪除
-            if (tempCookiePath && fs.existsSync(tempCookiePath)) {
-                fs.unlinkSync(tempCookiePath);
-            }
+            // if (tempCookiePath && fs.existsSync(tempCookiePath)) {
+            //     fs.unlinkSync(tempCookiePath);
+            // }
 
             if (code === 0) {
                 process.stdout.write(`\n[Job] ${downloadFormat.toUpperCase()} Task Completed\n`);
@@ -182,15 +254,15 @@ app.post('/api/download', async (req, res) => {
 
         ytDlpProcess.on('error', (err) => {
             // 【安全清理】發生崩潰錯誤時也要刪除
-            if (tempCookiePath && fs.existsSync(tempCookiePath)) {
-                fs.unlinkSync(tempCookiePath);
-            }
+            // if (tempCookiePath && fs.existsSync(tempCookiePath)) {
+            //     fs.unlinkSync(tempCookiePath);
+            // }
             console.error('\n[Job] Failed:', err.message);
             if (!res.headersSent) res.status(500).json({ error: err.message });
         });
 
     } catch (error) {
-        if (tempCookiePath && fs.existsSync(tempCookiePath)) fs.unlinkSync(tempCookiePath);
+        // if (tempCookiePath && fs.existsSync(tempCookiePath)) fs.unlinkSync(tempCookiePath);
         if (!res.headersSent) res.status(500).json({ error: error.message });
     }
 });
