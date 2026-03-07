@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kevin's YT Downloader</title>
+    <title>YT-Media-Extractor</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -134,8 +134,8 @@
 
     <div id="initMask"
         style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(5px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-        <h2 style="color: #1e293b; margin-bottom: 10px;">🚀 系統初始化中</h2>
-        <p style="color: #64748b; font-size: 0.9rem;">首次啟動需下載核心組件 (約需 10~30 秒)，請稍候...</p>
+        <h2 id="initTitle" style="color: #1e293b; margin-bottom: 10px;">🚀 系統初始化中</h2>
+        <p id="initDesc" style="color: #64748b; font-size: 0.9rem;">首次啟動需下載核心組件 (約需 10~30 秒)，請稍候...</p>
         <div
             style="width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; margin-top: 20px;">
         </div>
@@ -152,18 +152,26 @@
         </style>
     </div>
 
+    <div style="position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 10000;">
+        <button onclick="openFolder()" id="btnFolder"
+            style="width: fit-content; background: rgba(100, 116, 139, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+            onmouseover="this.style.background='rgba(100, 116, 139, 1)'"
+            onmouseout="this.style.background='rgba(100, 116, 139, 0.8)'" title="開啟程式資料夾">
+            📂
+        </button>
 
-    <button onclick="openFolder()"
-        style="position: fixed; top: 20px; right: 20px; width: fit-content; background: rgba(100, 116, 139, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
-        onmouseover="this.style.background='rgba(100, 116, 139, 1)'"
-        onmouseout="this.style.background='rgba(100, 116, 139, 0.8)'" title="開啟程式資料夾">
-        📂
-    </button>
+        <button onclick="toggleLanguage()" id="btnLang"
+            style="width: fit-content; background: rgba(37, 99, 235, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+            onmouseover="this.style.background='rgba(37, 99, 235, 1)'"
+            onmouseout="this.style.background='rgba(37, 99, 235, 0.8)'">
+            EN
+        </button>
+    </div>
 
     <div class="card">
         <div
             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 10px;">
-            <h1 style="margin: 0; white-space: nowrap; flex-shrink: 0;">YT-Media-Extractor</h1>
+            <h1 id="appTitle" style="margin: 0; white-space: nowrap; flex-shrink: 0;">YT-媒體下載器</h1>
 
             <div style="display: flex; gap: 8px;">
 
@@ -194,9 +202,8 @@
         </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 1rem;">
-            <button id="btnMp3" style="flex: 1;" onclick="startDownload('mp3')">Download MP3</button>
-            <button id="btnMp4" style="flex: 1; background: #059669;" onclick="startDownload('mp4')">Download
-                MP4</button>
+            <button id="btnMp3" style="flex: 1;" onclick="startDownload('mp3')">下載 MP3</button>
+            <button id="btnMp4" style="flex: 1; background: #059669;" onclick="startDownload('mp4')">下載 MP4</button>
         </div>
 
         <div id="progressContainer">
@@ -227,6 +234,61 @@
         const progressPercent = document.getElementById('progressPercent');
         const progressEta = document.getElementById('progressEta');
 
+        // 【新增】語系字典
+        // 1. 【優化】語系字典移至頂部，並補齊所有狀態文字
+        const i18n = {
+            zh: {
+                appTitle: "YT-媒體下載器",
+                langBtn: "EN",
+                fixBtn: "🔧 下載失敗？點我修復",
+                placeholder: "請貼上 YouTube 影片網址...",
+                login: "登入解鎖 4K",
+                loggedIn: "✅ 已登入 (解鎖 4K)",
+                loggingIn: "等待登入中...",
+                logout: "登出",
+                dlMp3: "下載 MP3",
+                dlMp4: "下載 MP4",
+                initTitle: "🚀 系統初始化中",
+                initDesc: "首次啟動需下載核心組件 (約需 10~30 秒)，請稍候...",
+                folderTitle: "開啟程式資料夾",
+                logoutConfirm: "確定要清除登入憑證嗎？(這將導致無法下載 4K 影片)",
+                logoutSuccess: "已成功登出並清除 Cookie！",
+                loginSuccess: "✅ 憑證載入成功！現在可以下載 4K 影片了。",
+                fixConfirm: "當您遇到「下載一直報錯」時才需要使用此功能。確定要執行嗎？",
+                fixSuccess: "✅ 下載核心已成功更新到最新版本！",
+                cookieExpired: "⚠️ 偵測到您的 YouTube 登入憑證已過期！\n請重新登入。",
+                expiredBtn: "‼️ 憑證過期，點此重登",
+                logoutError: "登出失敗"
+            },
+            en: {
+                appTitle: "YT-Media-Extractor",
+                langBtn: "繁",
+                fixBtn: "🔧 Fix Download?",
+                placeholder: "Paste YouTube URL here...",
+                login: "Login for 4K",
+                loggedIn: "✅ Logged In (4K)",
+                loggingIn: "Waiting for login...",
+                logout: "Logout",
+                dlMp3: "Download MP3",
+                dlMp4: "Download MP4",
+                initTitle: "🚀 Initializing System",
+                initDesc: "Downloading core components (approx. 10-30s), please wait...",
+                folderTitle: "Open App Folder",
+                logoutConfirm: "Are you sure you want to logout? (4K will be disabled)",
+                logoutSuccess: "Logged out and cookies cleared!",
+                loginSuccess: "✅ Success! 4K download is now enabled.",
+                fixConfirm: "Use this only if downloads keep failing. Continue?",
+                fixSuccess: "✅ Core components updated successfully!",
+                cookieExpired: "⚠️ Your YouTube login has expired!\nPlease login again.",
+                expiredBtn: "‼️ Expired, click to re-login",
+                logoutError: "Logout failed"
+            }
+        };
+
+        // 2. 【關鍵】建立全域狀態變數
+        let currentLang = 'zh';
+        let isUserLoggedIn = false; // 記住登入狀態
+
         // 網頁載入時，檢查登入狀態
         window.onload = async () => {
             try {
@@ -256,14 +318,19 @@
 
         // 更新 UI 狀態的獨立函式
         function updateLoginUI(isLoggedIn) {
+            isUserLoggedIn = isLoggedIn; // 更新全域變數，讓 toggleLanguage 知道現在狀態
             const btnLogin = document.getElementById('btnLogin');
             const btnLogout = document.getElementById('btnLogout');
+            const t = i18n[currentLang]; // 抓取當前字典
+
             if (isLoggedIn) {
-                btnLogin.innerText = '✅ 已登入 (重整憑證)';
+                // 【修正】使用字典變數，不要用 '✅ 已登入 (解鎖 4K)'
+                btnLogin.innerText = t.loggedIn;
                 btnLogin.style.background = '#10b981';
                 btnLogout.style.display = 'block';
             } else {
-                btnLogin.innerText = '登入解鎖 4K';
+                // 【修正】使用字典變數，不要用 '登入解鎖 4K'
+                btnLogin.innerText = t.login;
                 btnLogin.style.background = '#ef4444';
                 btnLogout.style.display = 'none';
             }
@@ -271,13 +338,20 @@
 
         // 登出功能
         async function logout() {
-            if (!confirm('確定要清除登入憑證嗎？(這將導致無法下載 4K 影片)')) return;
+            // 抓取當前語系的字典
+            const t = i18n[currentLang];
+
+            // 使用字典中的確認訊息
+            if (!confirm(t.logoutConfirm)) return;
+
             try {
                 await fetch('/api/logout', { method: 'POST' });
                 updateLoginUI(false);
-                alert('已成功登出並清除 Cookie！');
+                // 使用字典中的成功訊息
+                alert(t.logoutSuccess);
             } catch (err) {
-                alert('登出失敗');
+                // 使用字典中的失敗訊息
+                alert(t.logoutError);
             }
         }
 
@@ -441,6 +515,37 @@
                 console.error('無法開啟資料夾:', err);
             }
         }
+
+        function toggleLanguage() {
+            currentLang = (currentLang === 'zh') ? 'en' : 'zh';
+            const t = i18n[currentLang];
+
+            // 瞬間更新所有文字
+            document.getElementById('appTitle').innerText = t.appTitle;
+            document.getElementById('btnLang').innerText = t.langBtn;
+            document.getElementById('btnFix').innerText = t.fixBtn;
+            document.getElementById('url').placeholder = t.placeholder;
+            document.getElementById('btnLogin').innerText = t.loggedIn;
+            document.getElementById('btnLogout').innerText = t.logout;
+            document.getElementById('btnMp3').innerText = t.dlMp3;
+            document.getElementById('btnMp4').innerText = t.dlMp4;
+            document.getElementById('initTitle').innerText = t.initTitle;
+            document.getElementById('initDesc').innerText = t.initDesc;
+            document.getElementById('btnFolder').title = t.folderTitle;
+
+            // 【重要】不需要再 fetch，直接根據記住的狀態更新按鈕文字
+            updateLoginUI(isUserLoggedIn);
+
+            localStorage.setItem('preferredLang', currentLang);
+        }
+
+        // 頁面載入時檢查上次的語系設定F
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedLang = localStorage.getItem('preferredLang');
+            if (savedLang && savedLang !== currentLang) {
+                toggleLanguage();
+            }
+        });
 
     </script>
 </body>
