@@ -1,6 +1,6 @@
 {
-  "name": "yt-dip",
-  "version": "1.0.0",
+  "name": "yt-media-extractor",
+  "version": "2.3.0",
   "type": "module",
   "main": "main.js",
   "scripts": {
@@ -11,7 +11,7 @@
   },
   "build": {
     "appId": "com.kevin.ytdownloader",
-    "productName": "YT Audio Extractor",
+    "productName": "YT-Media-Extractor",
     "mac": {
       "target": "dmg",
       "category": "public.app-category.utilities"

@@ -335,6 +335,15 @@
             } catch (err) {
                 logs.innerText = `[錯誤] ${err.message}`;
                 logs.style.color = '#fda4af';
+
+                // [INSERT] 偵測 YouTube 演算法改版特徵
+                const ytUpdateKeywords = ['Signature solving failed', 'n challenge', 'format is not available', 'deno'];
+                if (ytUpdateKeywords.some(keyword => err.message.includes(keyword))) {
+                    const confirmFix = confirm('⚠️ 偵測到 YouTube 官方演算法改版，導致下載被攔截！\n\n是否立即啟動「修復引擎」更新核心？(約需 10~30 秒)');
+                    if (confirmFix) {
+                        fixEngine(); // 直接觸發你寫好的更新腳本
+                    }
+                }
             } finally {
                 btnMp3.disabled = false;
                 btnMp4.disabled = false;
