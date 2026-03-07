@@ -12,7 +12,7 @@ import util from 'util';
 import AdmZip from 'adm-zip'; // 【新增】跨平台原生解壓縮模組
 
 // 【神級新增】從 Electron 匯入視窗與 session 模組
-import { BrowserWindow, session } from 'electron';
+import { app as electronApp, BrowserWindow, session, shell } from 'electron';
 
 process.env.PYTHONIOENCODING = 'utf-8';
 process.env.LANG = 'zh_TW.UTF-8';
@@ -352,6 +352,27 @@ app.post('/api/fix-engine', async (req, res) => {
     } catch (error) {
         console.error('[系統] 修復引擎失敗:', error.message);
         res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/open-folder', (req, res) => {
+    try {
+        shell.openPath(APP_DATA_DIR);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// 【新增】取得專案版本號 (從 package.json)
+// ==========================================
+app.get('/api/version', (req, res) => {
+    try {
+        // 直接回傳 Electron 核心抓到的版本號，效能最高且最穩定
+        res.json({ version: electronApp.getVersion() });
+    } catch (error) {
+        res.status(500).json({ error: '無法取得版本資訊' });
     }
 });
 

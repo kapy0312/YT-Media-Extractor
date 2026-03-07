@@ -131,37 +131,48 @@
 </head>
 
 <body>
-    <div class="card">
-        <!-- <h1>YT Audio Extractor</h1> -->
-        <div id="initMask"
-            style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(5px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-            <h2 style="color: #1e293b; margin-bottom: 10px;">🚀 系統初始化中</h2>
-            <p style="color: #64748b; font-size: 0.9rem;">首次啟動需下載核心組件 (約需 10~30 秒)，請稍候...</p>
-            <div
-                style="width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; margin-top: 20px;">
-            </div>
-            <style>
-                @keyframes spin {
-                    0% {
-                        transform: rotate(0deg);
-                    }
 
-                    100% {
-                        transform: rotate(360deg);
-                    }
-                }
-            </style>
+    <div id="initMask"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(5px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        <h2 style="color: #1e293b; margin-bottom: 10px;">🚀 系統初始化中</h2>
+        <p style="color: #64748b; font-size: 0.9rem;">首次啟動需下載核心組件 (約需 10~30 秒)，請稍候...</p>
+        <div
+            style="width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; margin-top: 20px;">
         </div>
+        <style>
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
+    </div>
 
 
+    <button onclick="openFolder()"
+        style="position: fixed; top: 20px; right: 20px; width: fit-content; background: rgba(100, 116, 139, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+        onmouseover="this.style.background='rgba(100, 116, 139, 1)'"
+        onmouseout="this.style.background='rgba(100, 116, 139, 0.8)'" title="開啟程式資料夾">
+        📂
+    </button>
+
+    <div class="card">
         <div
             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 10px;">
-            <h1 style="margin: 0; white-space: nowrap; flex-shrink: 0;">YT Audio Extractor</h1>
-            <button id="btnFix" onclick="fixEngine()"
-                style="background: #f7513f; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.9rem; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); height: fit-content; width: fit-content; flex-shrink: 0;"
-                title="保持下載核心為最新版本，以獲取 YouTube 最新限速與加密。">
-                🔧 下載失敗？點我修復
-            </button>
+            <h1 style="margin: 0; white-space: nowrap; flex-shrink: 0;">YT-Media-Extractor</h1>
+
+            <div style="display: flex; gap: 8px;">
+
+                <button id="btnFix" onclick="fixEngine()"
+                    style="background: #f50b0b; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.9rem; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); height: fit-content; width: fit-content; flex-shrink: 0;"
+                    title="保持下載核心為最新版本，以獲取 YouTube 最新限速與加密。">
+                    🔧 下載失敗？點我修復
+                </button>
+            </div>
         </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 1.5rem;">
@@ -188,14 +199,6 @@
                 MP4</button>
         </div>
 
-        <!-- <div style="text-align: right; margin-bottom: 10px;">
-            <button id="btnFix" onclick="fixEngine()"
-                style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: 0.2s;"
-                title="如果一直下載失敗，請點擊此按鈕更新核心">
-                🛠️ 一鍵修復下載失敗
-            </button>
-        </div> -->
-
         <div id="progressContainer">
             <div class="progress-text">
                 <span id="progressPercent">0%</span>
@@ -207,6 +210,11 @@
         </div>
 
         <div id="logs"></div>
+    </div>
+
+    <div id="versionDisplay"
+        style="position: fixed; bottom: 12px; right: 12px; font-size: 0.75rem; color: #ffffff; font-family: monospace; opacity: 0.8; pointer-events: none; z-index: 1000;">
+        v0.0.0
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -229,6 +237,22 @@
                 console.error('無法檢查登入狀態', err);
             }
         };
+
+        // 【新增】自動獲取版本號
+        async function fetchVersion() {
+            try {
+                const res = await fetch('/api/version');
+                const data = await res.json();
+                if (data.version) {
+                    document.getElementById('versionDisplay').innerText = `v${data.version}`;
+                }
+            } catch (err) {
+                console.error('無法獲取版本:', err);
+            }
+        }
+
+        // 頁面載入後執行
+        fetchVersion();
 
         // 更新 UI 狀態的獨立函式
         function updateLoginUI(isLoggedIn) {
@@ -406,6 +430,15 @@
                 btnFix.innerText = originalText;
                 btnFix.disabled = false;
                 btnFix.style.opacity = '1';
+            }
+        }
+
+        // 【新增】呼叫 API 開啟資料夾
+        async function openFolder() {
+            try {
+                await fetch('/api/open-folder', { method: 'POST' });
+            } catch (err) {
+                console.error('無法開啟資料夾:', err);
             }
         }
 
