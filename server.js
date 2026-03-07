@@ -9,6 +9,7 @@ import os from 'os';
 import ffmpegPath from 'ffmpeg-static';
 import { exec } from 'child_process'; // 用於執行系統指令
 import util from 'util';
+import AdmZip from 'adm-zip'; // 【新增】跨平台原生解壓縮模組
 
 // 【神級新增】從 Electron 匯入視窗與 session 模組
 import { BrowserWindow, session } from 'electron';
@@ -53,6 +54,7 @@ const ytDlpWrap = new YTDlpClass();
 
 // 新增 Deno 下載路徑定義
 const DENO_PATH = path.join(APP_DATA_DIR, isWin ? 'deno.exe' : 'deno');
+let isSystemReady = false;
 
 async function ensureBinary() {
     // 1. 檢查並下載 yt-dlp
@@ -66,21 +68,29 @@ async function ensureBinary() {
     if (!fs.existsSync(DENO_PATH)) {
         console.log('[System] Deno not found, initializing auto-download... (This may take a minute)');
         try {
-            if (isWin) {
-                // Windows：使用 PowerShell 下載並解壓縮 Deno
-                const zipPath = path.join(APP_DATA_DIR, 'deno.zip');
-                const command = `powershell -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip' -OutFile '${zipPath}'; Expand-Archive -Path '${zipPath}' -DestinationPath '${APP_DATA_DIR}' -Force; Remove-Item '${zipPath}'"`;
+            const zipUrl = isWin
+                ? 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip'
+                : 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip';
+            const zipPath = path.join(APP_DATA_DIR, 'deno.zip');
 
-                await execPromise(command);
-                console.log('[System] Deno for Windows downloaded and extracted successfully!');
-            } else {
-                // Mac/Linux：使用 curl 下載並 unzip (若您未來想支援 Mac)
-                const zipPath = path.join(APP_DATA_DIR, 'deno.zip');
-                const command = `curl -fsSL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip -o "${zipPath}" && unzip -o "${zipPath}" -d "${APP_DATA_DIR}" && rm "${zipPath}"`;
+            // 原生 Fetch 下載，無系統權限限制
+            const response = await fetch(zipUrl);
+            if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
 
-                await execPromise(command);
-                console.log('[System] Deno for Mac/Linux downloaded and extracted successfully!');
-            }
+            // 寫入壓縮檔
+            const buffer = await response.arrayBuffer();
+            fs.writeFileSync(zipPath, Buffer.from(buffer));
+
+            // 解壓縮到 APP_DATA_DIR (deno.exe 會直接放在這裡)
+            const zip = new AdmZip(zipPath);
+            zip.extractAllTo(APP_DATA_DIR, true);
+
+            // 確保 Mac/Linux 下有執行權限
+            if (!isWin) fs.chmodSync(DENO_PATH, 0o755);
+
+            // 清理暫存檔
+            fs.unlinkSync(zipPath);
+            console.log(`[System] Deno for ${isWin ? 'Windows' : 'Mac/Linux'} downloaded and extracted successfully!`);
         } catch (error) {
             console.error('[System] Failed to download Deno:', error.message);
             console.log('請手動下載 deno.exe 並放置於:', APP_DATA_DIR);
@@ -90,8 +100,11 @@ async function ensureBinary() {
 
 // Socket 連線測試
 io.on('connection', (socket) => {
-    // console.log('[Socket] 客戶端已連線');
     console.log('[Socket] Client connected');
+    // 【關鍵修復】若前端連線時後端已就緒，立刻補發解鎖訊號
+    if (isSystemReady) {
+        socket.emit('systemReady');
+    }
 });
 
 app.get('/api/open-folder', (req, res) => {
@@ -344,13 +357,21 @@ app.post('/api/fix-engine', async (req, res) => {
 
 export function startServer() {
     return new Promise((resolve) => {
-        ensureBinary().then(() => {
-            // 注意：這裡是 server.listen 而不是 app.listen
-            const s = server.listen(0, () => {
-                const port = s.address().port;
-                // console.log(`[System] 伺服器啟動於 Port: ${port}`);
-                console.log(`[System] Server started on Port: ${port}`);
-                resolve(port);
+        // 立即啟動伺服器並回傳 Port 給 Electron，讓 UI 瞬間載入不卡頓
+        const s = server.listen(0, () => {
+            const port = s.address().port;
+            console.log(`[System] Server started on Port: ${port}`);
+            resolve(port);
+
+            // 將依賴下載移至背景異步執行
+            ensureBinary().then(() => {
+                isSystemReady = true;
+                io.emit('systemReady'); // 下載/檢查完畢，通知前端解鎖
+            }).catch(err => {
+                console.error('[System] Background initialization failed:', err);
+                // 【關鍵修復】即使背景下載失敗也要解鎖 UI，避免永久卡死
+                isSystemReady = true;
+                io.emit('systemReady');
             });
         });
     });
