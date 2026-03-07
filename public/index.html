@@ -132,7 +132,16 @@
 
 <body>
     <div class="card">
-        <h1>YT Audio Extractor</h1>
+        <!-- <h1>YT Audio Extractor</h1> -->
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 10px;">
+            <h1 style="margin: 0; white-space: nowrap; flex-shrink: 0;">YT Audio Extractor</h1>
+            <button id="btnFix" onclick="fixEngine()"
+                style="background: #f7513f; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.9rem; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); height: fit-content; width: fit-content; flex-shrink: 0;"
+                title="保持下載核心為最新版本，以獲取 YouTube 最新限速與加密。">
+                🔧 下載失敗？點我修復
+            </button>
+        </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 1.5rem;">
             <input type="text" id="url" placeholder="請貼上 YouTube 影片網址..."
@@ -157,6 +166,14 @@
             <button id="btnMp4" style="flex: 1; background: #059669;" onclick="startDownload('mp4')">Download
                 MP4</button>
         </div>
+
+        <!-- <div style="text-align: right; margin-bottom: 10px;">
+            <button id="btnFix" onclick="fixEngine()"
+                style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: 0.2s;"
+                title="如果一直下載失敗，請點擊此按鈕更新核心">
+                🛠️ 一鍵修復下載失敗
+            </button>
+        </div> -->
 
         <div id="progressContainer">
             <div class="progress-text">
@@ -323,6 +340,36 @@
                 btnMp4.disabled = false;
             }
         }
+
+        // 【新增】一鍵修復功能
+        async function fixEngine() {
+            // 防呆確認，避免誤觸
+            if (!confirm('當您遇到「下載一直報錯」或「YouTube 改版」時才需要使用此功能。\n\n系統將自動為您更新下載核心，大約需要 10~30 秒，確定要執行嗎？')) return;
+
+            const btnFix = document.getElementById('btnFix');
+            const originalText = btnFix.innerText;
+            btnFix.innerText = '⏳ 正在修復與更新核心... (請稍候)';
+            btnFix.disabled = true;
+            btnFix.style.opacity = '0.7';
+
+            try {
+                const res = await fetch('/api/fix-engine', { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert('✅ 下載核心已成功更新到最新版本！\n請重新貼上網址下載看看。');
+                } else {
+                    alert('❌ 修復失敗：' + data.error);
+                }
+            } catch (err) {
+                alert('❌ 發生網路或系統錯誤，無法修復。');
+            } finally {
+                btnFix.innerText = originalText;
+                btnFix.disabled = false;
+                btnFix.style.opacity = '1';
+            }
+        }
+
     </script>
 </body>
 

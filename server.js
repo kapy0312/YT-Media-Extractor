@@ -105,7 +105,7 @@ app.get('/api/open-folder', (req, res) => {
 // 【終極魔改】攔截 YouTube Cookie 系統 (修復 Mojo 崩潰與逾時)
 // ==========================================
 app.get('/api/login', async (req, res) => {
-    req.setTimeout(0); 
+    req.setTimeout(0);
 
     const loginWin = new BrowserWindow({
         width: 800,
@@ -153,7 +153,7 @@ app.get('/api/login', async (req, res) => {
                     div.innerHTML = "✅ 登入成功！正在自動關閉視窗...";
                     div.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#10b981; color:white; text-align:center; padding:15px; z-index:99999; font-size:20px; font-weight:bold;";
                     document.body.appendChild(div);
-                `).catch(() => {});
+                `).catch(() => { });
 
                 // 4. 回傳給前端並關閉
                 if (!res.headersSent) {
@@ -186,12 +186,12 @@ app.get('/api/login', async (req, res) => {
     loginWin.on('close', async (event) => {
         clearInterval(checkInterval);
         if (res.headersSent) return;
-        
+
         event.preventDefault(); // 攔截關閉
         // 最後檢查一次有沒有登入
         const cookies = await session.defaultSession.cookies.get({ url: 'https://www.youtube.com' });
         const isLoggedIn = cookies.some(c => c.name === 'SID');
-        
+
         res.json({ success: true, isLoggedIn: isLoggedIn });
         loginWin.destroy(); // 正式銷毀
     });
@@ -314,6 +314,31 @@ app.post('/api/download', async (req, res) => {
     } catch (error) {
         // if (tempCookiePath && fs.existsSync(tempCookiePath)) fs.unlinkSync(tempCookiePath);
         if (!res.headersSent) res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// 【新增】一鍵修復引擎 (自動刪除舊版並重抓最新版)
+// ==========================================
+app.post('/api/fix-engine', async (req, res) => {
+    try {
+        console.log('[系統] 客戶要求修復引擎，準備刪除舊版 yt-dlp...');
+
+        // 1. 如果舊檔案存在，強制刪除
+        if (fs.existsSync(BINARY_PATH)) {
+            fs.unlinkSync(BINARY_PATH);
+            console.log('[系統] 舊版 yt-dlp 已刪除');
+        }
+
+        // 2. 呼叫你原本寫好的 ensureBinary 重新下載最新版
+        console.log('[系統] 正在為客戶下載最新版 yt-dlp...');
+        await ensureBinary();
+        console.log('[系統] 最新版 yt-dlp 下載完成！');
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[系統] 修復引擎失敗:', error.message);
+        res.status(500).json({ error: error.message });
     }
 });
 
