@@ -9,7 +9,7 @@ import util from 'util';
 import AdmZip from 'adm-zip';
 
 // 【引入 Electron 原生模組】
-import { app as electronApp, BrowserWindow, session, shell, ipcMain } from 'electron';
+import { app as electronApp, BrowserWindow, session, shell, ipcMain, safeStorage } from 'electron';
 
 process.env.PYTHONIOENCODING = 'utf-8';
 process.env.LANG = 'zh_TW.UTF-8';
@@ -24,7 +24,8 @@ if (!fs.existsSync(APP_DATA_DIR)) {
     fs.mkdirSync(APP_DATA_DIR, { recursive: true });
 }
 
-const COOKIE_FILE_PATH = path.join(APP_DATA_DIR, 'cookies.txt');
+const ENCRYPTED_COOKIE_PATH = path.join(APP_DATA_DIR, 'cookies.enc');
+const OLD_COOKIE_FILE_PATH = path.join(APP_DATA_DIR, 'cookies.txt');
 
 // 將隱藏資料夾加入環境變數 PATH
 process.env.PATH = `${APP_DATA_DIR}${path.delimiter}${process.env.PATH}`;
@@ -86,7 +87,11 @@ async function ensureBinary() {
 export function initBackend(mainWindow) {
     mainWindowInstance = mainWindow;
 
-    // 【新增】提供前端「主動查詢」系統狀態的 API
+    // 【資安升級】如果偵測到舊版的明文 cookie，為了保護使用者，啟動時自動刪除
+    if (fs.existsSync(OLD_COOKIE_FILE_PATH)) {
+        try { fs.unlinkSync(OLD_COOKIE_FILE_PATH); } catch (e) { }
+    }
+
     ipcMain.handle('api:is-system-ready', () => {
         return { ready: isSystemReady };
     });
@@ -117,12 +122,6 @@ export function initBackend(mainWindow) {
         }
     });
 
-    // 4. 檢查登入狀態 API
-    ipcMain.handle('api:check-login', () => {
-        const isLoggedIn = fs.existsSync(COOKIE_FILE_PATH);
-        return { isLoggedIn };
-    });
-
     ipcMain.handle('api:open-app-data-folder', () => {
         try {
             shell.openPath(APP_DATA_DIR);
@@ -130,6 +129,13 @@ export function initBackend(mainWindow) {
         } catch (error) {
             throw new Error(error.message);
         }
+    });
+
+    // 4. 檢查登入狀態 API
+    ipcMain.handle('api:check-login', () => {
+        // 【修改】改為檢查加密的 Cookie 檔案是否存在
+        const isLoggedIn = fs.existsSync(ENCRYPTED_COOKIE_PATH);
+        return { isLoggedIn };
     });
 
     // 5. 登出 API
@@ -189,7 +195,14 @@ export function initBackend(mainWindow) {
                             netscapeFormat += `${domain}\t${includeSubdomains}\t${path}\t${secure}\t${expiry}\t${c.name}\t${c.value}\n`;
                         });
 
-                        fs.writeFileSync(COOKIE_FILE_PATH, netscapeFormat, 'utf-8');
+                        // 【安全加密】使用作業系統底層 API 進行加密寫入
+                        if (safeStorage.isEncryptionAvailable()) {
+                            const encryptedCookie = safeStorage.encryptString(netscapeFormat);
+                            fs.writeFileSync(ENCRYPTED_COOKIE_PATH, encryptedCookie);
+                        } else {
+                            // 極少數系統不支援加密時，退回明文保護
+                            fs.writeFileSync(ENCRYPTED_COOKIE_PATH, netscapeFormat, 'utf-8');
+                        }
 
                         loginWin.webContents.executeJavaScript(`
                             const div = document.createElement('div');
@@ -234,6 +247,8 @@ export function initBackend(mainWindow) {
             const downloadFormat = format || 'mp3';
             if (mainWindowInstance) mainWindowInstance.webContents.send('log', `\n[Job] Starting download (${downloadFormat}): ${url}`);
 
+            let tempCookiePath = null; // 【新增】暫存的解密 Cookie 檔案路徑
+
             try {
                 let args = [
                     url,
@@ -248,9 +263,28 @@ export function initBackend(mainWindow) {
                     '--no-check-certificates'
                 ];
 
-                if (fs.existsSync(COOKIE_FILE_PATH)) {
-                    if (mainWindowInstance) mainWindowInstance.webContents.send('log', `[Job] 偵測到 Cookie 憑證，解鎖最高畫質與音質...`);
-                    args.push('--cookies', COOKIE_FILE_PATH);
+                // 【解密與暫存處理】
+                if (fs.existsSync(ENCRYPTED_COOKIE_PATH)) {
+                    try {
+                        const encryptedData = fs.readFileSync(ENCRYPTED_COOKIE_PATH);
+                        let decryptedString;
+                        try {
+                            decryptedString = safeStorage.decryptString(encryptedData);
+                        } catch (e) {
+                            // 兼容無加密能力的環境
+                            decryptedString = encryptedData.toString('utf-8');
+                        }
+
+                        // 在 OS 的暫存目錄建立隨機名稱的臨時 Cookie 檔
+                        tempCookiePath = path.join(os.tmpdir(), `yt_cookie_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.txt`);
+                        fs.writeFileSync(tempCookiePath, decryptedString, 'utf-8');
+
+                        if (mainWindowInstance) mainWindowInstance.webContents.send('log', `[Job] 🔒 偵測到加密憑證，已安全解密並解鎖最高畫質...`);
+                        args.push('--cookies', tempCookiePath);
+                    } catch (err) {
+                        console.error('Cookie 處理失敗:', err);
+                        if (mainWindowInstance) mainWindowInstance.webContents.send('log', `[Job] ⚠️ Cookie 讀取失敗，將以未登入狀態下載。`);
+                    }
                 }
 
                 if (downloadFormat === 'mp4') {
@@ -261,6 +295,13 @@ export function initBackend(mainWindow) {
                 }
 
                 const ytDlpProcess = ytDlpWrap.exec(args);
+
+                // 【清理暫存機制】無論成功或失敗都要銷毀明文暫存檔
+                const cleanupTempCookie = () => {
+                    if (tempCookiePath && fs.existsSync(tempCookiePath)) {
+                        try { fs.unlinkSync(tempCookiePath); } catch (e) { }
+                    }
+                };
 
                 ytDlpProcess.ytDlpProcess.stdout.on('data', (buffer) => {
                     const text = buffer.toString('utf-8');
@@ -273,11 +314,9 @@ export function initBackend(mainWindow) {
 
                 ytDlpProcess.ytDlpProcess.stderr.on('data', (buffer) => {
                     const text = buffer.toString('utf-8');
-
                     if (text.includes('Sign in to confirm') || text.includes('confirm you are not a bot')) {
                         if (mainWindowInstance) mainWindowInstance.webContents.send('cookieExpired');
                     }
-
                     if (!text.includes('%')) {
                         if (mainWindowInstance) mainWindowInstance.webContents.send('log', `[yt-dlp] ${text.trim()}`);
                     }
@@ -289,6 +328,7 @@ export function initBackend(mainWindow) {
                 });
 
                 ytDlpProcess.on('close', (code) => {
+                    cleanupTempCookie(); // 【新增】執行完畢銷毀明文
                     if (code === 0) {
                         if (mainWindowInstance) {
                             mainWindowInstance.webContents.send('log', `\n[Job] ${downloadFormat.toUpperCase()} Task Completed`);
@@ -301,10 +341,15 @@ export function initBackend(mainWindow) {
                 });
 
                 ytDlpProcess.on('error', (err) => {
+                    cleanupTempCookie(); // 【新增】發生錯誤銷毀明文
                     reject(new Error(err.message));
                 });
 
             } catch (error) {
+                // 如果在執行 yt-dlp 之前就崩潰，也要銷毀明文
+                if (tempCookiePath && fs.existsSync(tempCookiePath)) {
+                    try { fs.unlinkSync(tempCookiePath); } catch (e) { }
+                }
                 reject(new Error(error.message));
             }
         });
