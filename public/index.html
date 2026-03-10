@@ -678,6 +678,26 @@
                 console.error("無法載入路徑", err);
             }
 
+            // 【新增】自動檢查更新邏輯
+            setTimeout(async () => {
+                try {
+                    const updateInfo = await window.api.invoke('api:check-update');
+                    if (updateInfo && updateInfo.hasUpdate) {
+                        const t = i18n[currentLang];
+                        const isZh = (currentLang === 'zh');
+
+                        const msg = isZh
+                            ? `✨ 發現新版本：v${updateInfo.latestVersion}\n\n是否前往下載最新免安裝壓縮檔 (.7z)？`
+                            : `✨ New version available: v${updateInfo.latestVersion}\n\nDownload the latest portable archive (.7z)?`;
+
+                        if (confirm(msg)) {
+                            window.api.invoke('api:open-external', updateInfo.downloadUrl);
+                        }
+                    }
+                } catch (err) {
+                    console.log('Update check skipped.');
+                }
+            }, 3500); // 啟動 3.5 秒後檢查，不影響開啟速度
         });
 
         // 【新增】變更路徑的函式

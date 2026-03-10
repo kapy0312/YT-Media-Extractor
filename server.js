@@ -96,6 +96,10 @@ export function initBackend(mainWindow) {
         return { ready: isSystemReady };
     });
 
+    ipcMain.handle('api:open-external', (event, url) => {
+        shell.openExternal(url);
+    });
+
     // 1. 背景異步檢查/下載依賴
     ensureBinary().then(() => {
         isSystemReady = true;
@@ -384,5 +388,37 @@ export function initBackend(mainWindow) {
                 reject(new Error(error.message));
             }
         });
+    });
+
+    // 🚀 [新增] 檢查更新 API
+    ipcMain.handle('api:check-update', async () => {
+        try {
+            // 使用 Raw 連結讀取你的 JSON
+            const versionUrl = 'https://raw.githubusercontent.com/kapy0312/my-app-update/main/versions.json';
+            const response = await fetch(versionUrl);
+            if (!response.ok) throw new Error('無法連線至更新伺服器');
+
+            const data = await response.json();
+            const remoteInfo = data['YT-Media-Extractor'];
+            const currentVersion = electronApp.getVersion(); // 抓取 package.json 裡的 version
+
+            // 比對版本號
+            if (remoteInfo && remoteInfo.latest_version !== currentVersion) {
+                return {
+                    hasUpdate: true,
+                    latestVersion: remoteInfo.latest_version,
+                    downloadUrl: remoteInfo.download_url
+                };
+            }
+            return { hasUpdate: false };
+        } catch (error) {
+            console.error('[Update Check Error]:', error);
+            return { hasUpdate: false };
+        }
+    });
+
+    // 🚀 [新增] 開啟瀏覽器 API
+    ipcMain.handle('api:open-external', (event, url) => {
+        if (url) shell.openExternal(url);
     });
 }
