@@ -297,7 +297,15 @@
                 downloadComplete: "✅ 下載完成！請至 Downloads 資料夾查看。",
                 pathLabel: "📁 儲存位置",
                 btnChangePath: "變更目錄",
-                multiUrlWarning: "⚠️ 本系統為確保穩定度，僅支援單次下載「單一網址」！\n請勿同時輸入多個網址。"
+                multiUrlWarning: "⚠️ 本系統為確保穩定度，僅支援單次下載「單一網址」！\n請勿同時輸入多個網址。",
+                errPrivate: "🔒 此影片為私人影片、已遭刪除或為版權限制內容。",
+                errRegion: "🌍 此影片受地區限制，請嘗試在您的電腦掛載 VPN 後再試。",
+                errMember: "👑 此為會員專屬影片！請確認您的 YouTube 帳號具備該頻道會員資格，並重新登入軟體。",
+                errAge: "🔞 此為年齡限制影片！請點擊「登入解鎖 4K」登入您的 YouTube 帳號以驗證年齡。",
+                err403: "🚫 YouTube 拒絕了下載連線 (403 Forbidden)。\n👉 解法：請點擊右上角「🔧 修復」更新核心，或重新登入憑證。",
+                errUrl: "❌ 網址無效！請確認您輸入的是正確的 YouTube 影片網址。",
+                errBot: "🤖 觸發 YouTube 防機器人驗證！\n👉 解法：請重新點擊「登入」更新您的 Cookie 憑證。",
+                errDefault: "❌ 下載失敗！請檢查網址是否正確，或點擊上方「🔧 修復」更新核心引擎。"
             },
             en: {
                 appTitle: "YT-Media-Extractor",
@@ -324,7 +332,15 @@
                 downloadComplete: "✅ Download complete! Check your Downloads folder.",
                 pathLabel: "📁 Save Location",
                 btnChangePath: "Change",
-                multiUrlWarning: "⚠️ To ensure stability, please enter only ONE URL at a time."
+                multiUrlWarning: "⚠️ To ensure stability, please enter only ONE URL at a time.",
+                errPrivate: "🔒 This video is private, deleted, or copyrighted.",
+                errRegion: "🌍 Region restricted. Please try using a VPN.",
+                errMember: "👑 Members-only video! Please login with an account that has a membership.",
+                errAge: "🔞 Age-restricted video! Please login to verify your age.",
+                err403: "🚫 Connection rejected (403 Forbidden).\n👉 Fix: Click '🔧 Fix' to update core, or re-login.",
+                errUrl: "❌ Invalid URL! Please enter a valid YouTube link.",
+                errBot: "🤖 YouTube anti-bot triggered!\n👉 Fix: Please login again to refresh your cookies.",
+                errDefault: "❌ Download failed! Please check the URL or click '🔧 Fix' to update the engine."
             }
         };
 
@@ -344,6 +360,26 @@
                 console.error('無法檢查登入狀態', err);
             }
         };
+
+        // ==========================================
+        // 【新增】錯誤訊息翻譯機
+        // ==========================================
+        function translateError(errMsg) {
+            const t = i18n[currentLang];
+            const lowerMsg = errMsg.toLowerCase();
+
+            // 根據 yt-dlp 常見的英文報錯關鍵字進行攔截
+            if (lowerMsg.includes('private video') || lowerMsg.includes('video unavailable')) return t.errPrivate;
+            if (lowerMsg.includes('country') || lowerMsg.includes('geo-restricted')) return t.errRegion;
+            if (lowerMsg.includes('members only')) return t.errMember;
+            if (lowerMsg.includes('age-restricted') || lowerMsg.includes('sign in to confirm your age')) return t.errAge;
+            if (lowerMsg.includes('403') || lowerMsg.includes('forbidden')) return t.err403;
+            if (lowerMsg.includes('unsupported url') || lowerMsg.includes('incomplete yt-dlp invocation')) return t.errUrl;
+            if (lowerMsg.includes('confirm you are not a bot') || lowerMsg.includes('sign in to confirm')) return t.errBot;
+
+            // 如果找不到匹配的，回傳預設錯誤，並附上一小段原始報錯供進階排查
+            return `${t.errDefault}\n\n(Error Log: ${errMsg.substring(0, 80)}...)`;
+        }
 
         // 【新增】自動獲取版本號
         async function fetchVersion() {
@@ -538,10 +574,17 @@
             try {
                 const result = await window.api.invoke('api:download', { url: url, format: type, savePath: currentSavePath });
             } catch (err) {
+                // 👇【修改】將原本生硬的 err.message 丟入翻譯機
+                const friendlyError = translateError(err.message || '');
                 const logsDiv = document.getElementById('logs');
-                logsDiv.innerHTML += `<div style="color: red;">❌ 錯誤: ${err.message || '下載失敗'}</div>`;
-                alert(`下載失敗: ${err.message || '發生錯誤'}`);
+
+                logsDiv.innerHTML += `<div style="color: #f87171; font-weight: bold; margin-top: 10px;">${friendlyError.replace(/\n/g, '<br>')}</div>`;
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+
+                // 彈出經過翻譯的白話文 Alert
+                alert(friendlyError);
             } finally {
+                // 👇 【修正】加入 finally 區塊，確保無論成功或失敗都會解鎖按鈕
                 btnMp3.disabled = false;
                 btnMp4.disabled = false;
             }
@@ -604,7 +647,7 @@
             document.getElementById('btnLang').innerText = t.langBtn;
             document.getElementById('btnFix').innerText = t.fixBtn;
             document.getElementById('url').placeholder = t.placeholder;
-            // document.getElementById('btnLogin').innerText = t.loggedIn;
+            document.getElementById('btnLogin').innerText = t.loggedIn;
             document.getElementById('btnLogout').innerText = t.logout;
             document.getElementById('btnMp3').innerText = t.dlMp3;
             document.getElementById('btnMp4').innerText = t.dlMp4;

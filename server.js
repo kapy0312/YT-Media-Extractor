@@ -165,7 +165,7 @@ export function initBackend(mainWindow) {
     // 5. 登出 API
     ipcMain.handle('api:logout', () => {
         try {
-            if (fs.existsSync(COOKIE_FILE_PATH)) fs.unlinkSync(COOKIE_FILE_PATH);
+            if (fs.existsSync(ENCRYPTED_COOKIE_PATH)) fs.unlinkSync(ENCRYPTED_COOKIE_PATH);
             return { success: true };
         } catch (error) {
             throw new Error(error.message);
@@ -277,6 +277,8 @@ export function initBackend(mainWindow) {
             let tempCookiePath = null; // 【新增】暫存的解密 Cookie 檔案路徑
 
             try {
+                let lastErrorMsg = ''; // 👇【新增】用來完整收集 yt-dlp 的錯誤報錯字串
+
                 let args = [
                     url,
                     '--encoding', 'utf-8',
@@ -341,6 +343,7 @@ export function initBackend(mainWindow) {
 
                 ytDlpProcess.ytDlpProcess.stderr.on('data', (buffer) => {
                     const text = buffer.toString('utf-8');
+                    lastErrorMsg += text; // ✅ 【正確】：要把錯誤收集放在 stderr (錯誤輸出) 這裡！
                     if (text.includes('Sign in to confirm') || text.includes('confirm you are not a bot')) {
                         if (mainWindowInstance) mainWindowInstance.webContents.send('cookieExpired');
                     }
@@ -363,7 +366,8 @@ export function initBackend(mainWindow) {
                         }
                         resolve({ success: true });
                     } else {
-                        reject(new Error(`下載失敗 (Exit code: ${code})`));
+                        // 👇【修改】把原本單調的 Exit code 替換成我們收集到的完整報錯字串
+                        reject(new Error(lastErrorMsg || `下載失敗 (Exit code: ${code})`));
                     }
                 });
 
