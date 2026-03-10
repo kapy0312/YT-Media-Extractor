@@ -170,6 +170,13 @@
     </div>
 
     <div style="position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 10000;">
+        <button onclick="changeSavePath()" id="btnSetPath"
+            style="width: fit-content; background: rgba(16, 185, 129, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+            onmouseover="this.style.background='rgba(16, 185, 129, 1)'"
+            onmouseout="this.style.background='rgba(16, 185, 129, 0.8)'" title="設定下載儲存位置">
+            ⚙️
+        </button>
+
         <button onclick="openFolder()" id="btnFolder"
             style="width: fit-content; background: rgba(100, 116, 139, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
             onmouseover="this.style.background='rgba(100, 116, 139, 1)'"
@@ -203,6 +210,21 @@
         <div style="display: flex; gap: 10px; margin-bottom: 1.5rem;">
             <input type="text" id="url" placeholder="請貼上 YouTube 影片網址..."
                 style="flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none;">
+
+            <!-- <div class="input-group">
+                <input type="text" id="url" placeholder="請貼上 YouTube 影片網址 (限單一網址)...">
+            </div> -->
+
+            <!-- <div class="input-group" style="margin-top: -0.5rem; margin-bottom: 1.5rem; text-align: left;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <span id="pathLabel" style="font-size: 0.85rem; color: #64748b; font-weight: 600;">📁 儲存位置</span>
+                    <button id="btnChangePath" onclick="changeSavePath()"
+                        style="font-size: 0.75rem; padding: 4px 10px; background: #e2e8f0; color: #475569; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;">變更目錄</button>
+                </div>
+                <div id="currentPathDisplay"
+                    style="font-size: 0.8rem; color: #0ea5e9; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px dashed #cbd5e1; word-break: break-all;">
+                    載入中...</div>
+            </div> -->
 
             <div style="display: flex; gap: 5px;">
                 <button id="btnLogin" onclick="openLoginWindow()"
@@ -273,6 +295,9 @@
                 expiredBtn: "‼️ 憑證過期，點此重登",
                 logoutError: "登出失敗",
                 downloadComplete: "✅ 下載完成！請至 Downloads 資料夾查看。",
+                pathLabel: "📁 儲存位置",
+                btnChangePath: "變更目錄",
+                multiUrlWarning: "⚠️ 本系統為確保穩定度，僅支援單次下載「單一網址」！\n請勿同時輸入多個網址。"
             },
             en: {
                 appTitle: "YT-Media-Extractor",
@@ -296,13 +321,18 @@
                 cookieExpired: "⚠️ Your YouTube login has expired!\nPlease login again.",
                 expiredBtn: "‼️ Expired, click to re-login",
                 logoutError: "Logout failed",
-                downloadComplete: "✅ Download complete! Check your Downloads folder."
+                downloadComplete: "✅ Download complete! Check your Downloads folder.",
+                pathLabel: "📁 Save Location",
+                btnChangePath: "Change",
+                multiUrlWarning: "⚠️ To ensure stability, please enter only ONE URL at a time."
             }
         };
 
         // 2. 【關鍵】建立全域狀態變數
         let currentLang = 'zh';
         let isUserLoggedIn = false; // 記住登入狀態
+
+        let currentSavePath = ''; // 儲存當前路徑
 
         // 網頁載入時，檢查登入狀態
         window.onload = async () => {
@@ -486,6 +516,14 @@
             const url = urlInput.value;
             if (!url) return;
 
+            const t = i18n[currentLang]; // 👇 【修正】必須先定義 t 才能獲取警告文字
+
+            // 👇 利用空白或換行符號切割，若陣列長度 > 1 代表有多個網址
+            if (url.split(/[\n\r\s]+/).length > 1) {
+                alert(t.multiUrlWarning);
+                return;
+            }
+
             const btnMp3 = document.getElementById('btnMp3');
             const btnMp4 = document.getElementById('btnMp4');
 
@@ -498,7 +536,7 @@
             progressPercent.innerText = '0%';
 
             try {
-                const result = await window.api.invoke('api:download', { url: url, format: type });
+                const result = await window.api.invoke('api:download', { url: url, format: type, savePath: currentSavePath });
             } catch (err) {
                 const logsDiv = document.getElementById('logs');
                 logsDiv.innerHTML += `<div style="color: red;">❌ 錯誤: ${err.message || '下載失敗'}</div>`;
@@ -543,7 +581,7 @@
         // 【新增】呼叫 API 開啟資料夾
         async function openFolder() {
             try {
-                await window.api.invoke('api:open-folder');
+                await window.api.invoke('api:open-folder', currentSavePath);
             } catch (err) {
                 console.error('無法開啟資料夾:', err);
             }
@@ -573,20 +611,42 @@
             document.getElementById('initTitle').innerText = t.initTitle;
             document.getElementById('initDesc').innerText = t.initDesc;
             document.getElementById('btnFolder').title = t.folderTitle;
-
+            // document.getElementById('pathLabel').innerText = t.pathLabel;
+            // document.getElementById('btnChangePath').innerText = t.btnChangePath;
             // 【重要】不需要再 fetch，直接根據記住的狀態更新按鈕文字
+            document.getElementById('btnSetPath').title = currentLang === 'zh' ? '設定下載儲存位置' : 'Set Save Location';
             updateLoginUI(isUserLoggedIn);
 
             localStorage.setItem('preferredLang', currentLang);
         }
-
         // 頁面載入時檢查上次的語系設定F
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             const savedLang = localStorage.getItem('preferredLang');
             if (savedLang && savedLang !== currentLang) {
                 toggleLanguage();
             }
+
+            // 【新增】初始化下載路徑 (優先讀取記憶，否則向後端要預設值)
+            try {
+                const defaultPath = await window.api.invoke('api:get-default-path');
+                currentSavePath = localStorage.getItem('customSavePath') || defaultPath;
+                // document.getElementById('currentPathDisplay').innerText = currentSavePath;
+            } catch (err) {
+                console.error("無法載入路徑", err);
+            }
+
         });
+
+        // 【新增】變更路徑的函式
+        async function changeSavePath() {
+            const res = await window.api.invoke('api:select-folder');
+            if (res.success) {
+                currentSavePath = res.path;
+                localStorage.setItem('customSavePath', currentSavePath); // 記憶選擇
+                // document.getElementById('currentPathDisplay').innerText = currentSavePath;
+                alert(currentLang === 'zh' ? `✅ 下載路徑已變更為：\n${currentSavePath}` : `✅ Save location changed to:\n${currentSavePath}`);
+            }
+        }
 
     </script>
 </body>

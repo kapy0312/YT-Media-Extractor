@@ -9,7 +9,7 @@ import util from 'util';
 import AdmZip from 'adm-zip';
 
 // 【引入 Electron 原生模組】
-import { app as electronApp, BrowserWindow, session, shell, ipcMain, safeStorage } from 'electron';
+import { app as electronApp, BrowserWindow, session, shell, ipcMain, safeStorage, dialog } from 'electron';
 
 process.env.PYTHONIOENCODING = 'utf-8';
 process.env.LANG = 'zh_TW.UTF-8';
@@ -111,11 +111,35 @@ export function initBackend(mainWindow) {
         return { version: electronApp.getVersion() };
     });
 
-    // 3. 開啟資料夾 API
-    ipcMain.handle('api:open-folder', () => {
+    // ==========================================
+    // 📁 路徑與資料夾相關 API
+    // ==========================================
+
+    // 1. 取得系統預設下載路徑
+    ipcMain.handle('api:get-default-path', () => {
+        return DOWNLOAD_DIR;
+    });
+
+    // 2. 開啟資料夾選擇器 (讓使用者自訂路徑)
+    ipcMain.handle('api:select-folder', async () => {
+        const result = await dialog.showOpenDialog(mainWindowInstance, {
+            properties: ['openDirectory', 'createDirectory'],
+            title: '選擇下載儲存位置'
+        });
+
+        if (!result.canceled && result.filePaths.length > 0) {
+            return { success: true, path: result.filePaths[0] };
+        }
+        return { success: false };
+    });
+
+    // 3. 開啟目前的下載資料夾
+    ipcMain.handle('api:open-folder', async (event, targetPath) => {
         try {
-            const command = isWin ? `explorer "${DOWNLOAD_DIR}"` : `open "${DOWNLOAD_DIR}"`;
-            exec(command);
+            // 如果前端有傳自訂路徑就用前端的，沒有就用預設的
+            const dirToOpen = targetPath || DOWNLOAD_DIR;
+            // 【優化】改用 shell.openPath 更安全且跨平台
+            await shell.openPath(dirToOpen);
             return { success: true };
         } catch (error) {
             throw new Error(error.message);
@@ -242,9 +266,12 @@ export function initBackend(mainWindow) {
     });
 
     // 8. 下載功能 API
-    ipcMain.handle('api:download', async (event, { url, format }) => {
+    ipcMain.handle('api:download', async (event, { url, format, savePath }) => {
         return new Promise((resolve, reject) => {
             const downloadFormat = format || 'mp3';
+            // 決定最終儲存路徑
+            const targetDir = savePath || DOWNLOAD_DIR;
+
             if (mainWindowInstance) mainWindowInstance.webContents.send('log', `\n[Job] Starting download (${downloadFormat}): ${url}`);
 
             let tempCookiePath = null; // 【新增】暫存的解密 Cookie 檔案路徑
@@ -254,7 +281,7 @@ export function initBackend(mainWindow) {
                     url,
                     '--encoding', 'utf-8',
                     '--ffmpeg-location', getFfmpegPath(),
-                    '-P', DOWNLOAD_DIR,
+                    '-P', targetDir,
                     '--no-playlist',
                     '--progress',
                     '--newline',
