@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron'; // 👈 【新增】引入 Menu 模組
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initBackend, cleanupOnExit } from './server.js';
@@ -9,10 +9,14 @@ const __dirname = path.dirname(__filename);
 let mainWindow;
 
 function createWindow() {
+    // 👇 【新增】徹底拔除所有預設的應用程式選單 (File, Edit, View 等)
+    Menu.setApplicationMenu(null);
+
     mainWindow = new BrowserWindow({
         width: 600,
         height: 700,
         autoHideMenuBar: true, // 保留你原本隱藏選單列的設定
+        icon: path.join(__dirname, 'logo.ico'), // 👈 【新增】設定視窗左上角與工作列的圖示
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,

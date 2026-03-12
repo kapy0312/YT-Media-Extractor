@@ -1,13 +1,14 @@
 {
   "name": "yt-media-extractor",
-  "version": "2.5.7",
+  "version": "2.6.0",
   "description": "YouTube Media Extractor Tool",
   "author": "YourName",
   "type": "module",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win",
+    "build": "node build-app.js",
+    "build-win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -22,7 +23,8 @@
       "output": "dist"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "logo.ico"
     },
     "asarUnpack": [
       "**/node_modules/ffmpeg-static/**/*"
@@ -31,7 +33,8 @@
       "main.js",
       "server.js",
       "preload.cjs",
-      "public/**/*"
+      "public/**/*",
+      "logo.ico"
     ]
   },
   "dependencies": {
@@ -42,6 +45,7 @@
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "javascript-obfuscator": "^5.3.0"
   }
 }

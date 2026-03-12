@@ -424,34 +424,47 @@ export function initBackend(mainWindow) {
                     isDownloading = false;       // 👈 [新增] 解開防護鎖
                 };
 
+                // 👇 【關鍵修復一】：完整解析 stdout，把被隱藏的「合併中」狀態吐給前端
                 ytDlpProcess.ytDlpProcess.stdout.on('data', (buffer) => {
                     const text = buffer.toString('utf-8');
-                    const match = text.match(/(\d+\.\d+)%/);
-                    if (match) {
-                        const percent = parseFloat(match[1]);
-                        if (mainWindowInstance) mainWindowInstance.webContents.send('downloadProgress', { percent, eta: '下載中...' });
+                    const lines = text.split('\n');
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+
+                        // 解析進度 (改良 Regex：支援 100% 或是 23.4%)
+                        const match = line.match(/(\d+(?:\.\d+)?)%/);
+                        if (match) {
+                            const percent = parseFloat(match[1]);
+                            if (mainWindowInstance) mainWindowInstance.webContents.send('downloadProgress', { percent, eta: '下載中...' });
+                        } else {
+                            // 💡 顯示沒有 % 的關鍵狀態 (例如 Destination、Merging 合併中、Deleting...)
+                            if (mainWindowInstance) mainWindowInstance.webContents.send('log', `[yt-dlp] ${line.trim()}`);
+                        }
                     }
                 });
 
                 ytDlpProcess.ytDlpProcess.stderr.on('data', (buffer) => {
                     const text = buffer.toString('utf-8');
-                    lastErrorMsg += text; // ✅ 【正確】：要把錯誤收集放在 stderr (錯誤輸出) 這裡！
+                    lastErrorMsg += text; // 收集錯誤輸出
+
                     if (text.includes('Sign in to confirm') || text.includes('confirm you are not a bot')) {
                         if (mainWindowInstance) mainWindowInstance.webContents.send('cookieExpired');
                     }
                     if (!text.includes('%')) {
-                        if (mainWindowInstance) mainWindowInstance.webContents.send('log', `[yt-dlp] ${text.trim()}`);
-                    }
-                    const match = text.match(/(\d+\.\d+)%/);
-                    if (match) {
-                        const percent = parseFloat(match[1]);
-                        if (mainWindowInstance) mainWindowInstance.webContents.send('downloadProgress', { percent, eta: '下載中...' });
+                        if (mainWindowInstance) mainWindowInstance.webContents.send('log', `[Warn] ${text.trim()}`);
                     }
                 });
 
+                // 👇 【關鍵修復二】：確保結束時發送完成信號給 UI
                 ytDlpProcess.on('close', (code) => {
                     cleanupTempCookie();
-                    if (code === 0) {
+                    // 有時候套件成功退出時 code 會是 null，所以加上 || code == null 容錯
+                    if (code === 0 || code == null) {
+                        if (mainWindowInstance) {
+                            mainWindowInstance.webContents.send('log', `\n[Job] ${downloadFormat.toUpperCase()} Task Completed`);
+                            mainWindowInstance.webContents.send('downloadComplete'); // 👈 這裡一定要觸發前端的動畫收起
+                        }
                         resolve({ success: true });
                     } else {
                         reject(new Error(lastErrorMsg || `下載失敗 (Exit code: ${code})`));
