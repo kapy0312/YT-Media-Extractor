@@ -55,38 +55,34 @@ log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
 // 自動將 console.log 轉向到 electron-log
 Object.assign(console, log.functions);
 
-// async function ensureBinary() {
-//     if (!fs.existsSync(BINARY_PATH)) {
-//         console.log('[System] Downloading yt-dlp...');
-//         await YTDlpClass.downloadFromGithub(BINARY_PATH);
-//     }
-//     ytDlpWrap.setBinaryPath(BINARY_PATH);
+// 👇 [新增] 全域崩潰捕捉，確保致命錯誤一定會寫入 Log
+process.on('uncaughtException', (error) => {
+    log.error('[Fatal Error] Uncaught Exception:', error);
+});
+process.on('unhandledRejection', (reason) => {
+    log.error('[Fatal Error] Unhandled Rejection:', reason);
+});
 
-//     if (!fs.existsSync(DENO_PATH)) {
-//         console.log('[System] Deno not found, initializing auto-download...');
-//         try {
-//             const zipUrl = isWin
-//                 ? 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip'
-//                 : 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip';
-//             const zipPath = path.join(APP_DATA_DIR, 'deno.zip');
+// 👇 [新增] 全域狀態變數，用來追蹤當前任務與暫存檔
+let currentYtDlpProcess = null;
+let activeTempCookiePath = null;
+let isDownloading = false; // 後端併發鎖
 
-//             const response = await fetch(zipUrl);
-//             if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-
-//             const buffer = await response.arrayBuffer();
-//             fs.writeFileSync(zipPath, Buffer.from(buffer));
-
-//             const zip = new AdmZip(zipPath);
-//             zip.extractAllTo(APP_DATA_DIR, true);
-
-//             if (!isWin) fs.chmodSync(DENO_PATH, 0o755);
-//             fs.unlinkSync(zipPath);
-//             console.log(`[System] Deno downloaded successfully!`);
-//         } catch (error) {
-//             console.error('[System] Failed to download Deno:', error.message);
-//         }
-//     }
-// }
+// 👇 [新增] 強制清道夫函式：確保軟體關閉時絕對不會留下明文 Cookie 或殭屍行程
+export function cleanupOnExit() {
+    if (currentYtDlpProcess && !currentYtDlpProcess.killed) {
+        try {
+            currentYtDlpProcess.kill('SIGKILL');
+            log.info('[System] Force killed background yt-dlp process.');
+        } catch (e) { }
+    }
+    if (activeTempCookiePath && fs.existsSync(activeTempCookiePath)) {
+        try {
+            fs.unlinkSync(activeTempCookiePath);
+            log.info('[System] Force cleaned up residual temp cookie.');
+        } catch (e) { }
+    }
+}
 
 // ==========================================
 // 【核心功能】初始化後端並註冊所有 IPC API
@@ -354,6 +350,10 @@ export function initBackend(mainWindow) {
 
     // 8. 下載功能 API
     ipcMain.handle('api:download', async (event, { url, format, savePath }) => {
+        // 👇 [新增] 後端防護鎖，拒絕同時下載
+        if (isDownloading) return { success: false, error: '目前已有下載任務正在進行中。' };
+        isDownloading = true;
+
         return new Promise((resolve, reject) => {
             const downloadFormat = format || 'mp3';
             // 決定最終儲存路徑
@@ -393,6 +393,7 @@ export function initBackend(mainWindow) {
 
                         // 在 OS 的暫存目錄建立隨機名稱的臨時 Cookie 檔
                         tempCookiePath = path.join(os.tmpdir(), `yt_cookie_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.txt`);
+                        activeTempCookiePath = tempCookiePath; // 👈 [新增] 註冊到全域，防突發崩潰
                         fs.writeFileSync(tempCookiePath, decryptedString, 'utf-8');
 
                         if (mainWindowInstance) mainWindowInstance.webContents.send('log', `[Job] 🔒 偵測到加密憑證，已安全解密並解鎖最高畫質...`);
@@ -411,12 +412,16 @@ export function initBackend(mainWindow) {
                 }
 
                 const ytDlpProcess = ytDlpWrap.exec(args);
+                currentYtDlpProcess = ytDlpProcess.ytDlpProcess; // 👈 [新增] 註冊到全域，防止變殭屍
 
                 // 【清理暫存機制】無論成功或失敗都要銷毀明文暫存檔
                 const cleanupTempCookie = () => {
                     if (tempCookiePath && fs.existsSync(tempCookiePath)) {
                         try { fs.unlinkSync(tempCookiePath); } catch (e) { }
                     }
+                    activeTempCookiePath = null; // 清除全域紀錄
+                    currentYtDlpProcess = null;  // 清除全域紀錄
+                    isDownloading = false;       // 👈 [新增] 解開防護鎖
                 };
 
                 ytDlpProcess.ytDlpProcess.stdout.on('data', (buffer) => {
@@ -445,29 +450,25 @@ export function initBackend(mainWindow) {
                 });
 
                 ytDlpProcess.on('close', (code) => {
-                    cleanupTempCookie(); // 【新增】執行完畢銷毀明文
+                    cleanupTempCookie();
                     if (code === 0) {
-                        if (mainWindowInstance) {
-                            mainWindowInstance.webContents.send('log', `\n[Job] ${downloadFormat.toUpperCase()} Task Completed`);
-                            mainWindowInstance.webContents.send('downloadComplete');
-                        }
                         resolve({ success: true });
                     } else {
-                        // 👇【修改】把原本單調的 Exit code 替換成我們收集到的完整報錯字串
                         reject(new Error(lastErrorMsg || `下載失敗 (Exit code: ${code})`));
                     }
                 });
 
                 ytDlpProcess.on('error', (err) => {
-                    cleanupTempCookie(); // 【新增】發生錯誤銷毀明文
+                    cleanupTempCookie();
                     reject(new Error(err.message));
                 });
 
             } catch (error) {
-                // 如果在執行 yt-dlp 之前就崩潰，也要銷毀明文
+                isDownloading = false; // 解鎖
                 if (tempCookiePath && fs.existsSync(tempCookiePath)) {
                     try { fs.unlinkSync(tempCookiePath); } catch (e) { }
                 }
+                activeTempCookiePath = null;
                 reject(new Error(error.message));
             }
         });
@@ -477,9 +478,10 @@ export function initBackend(mainWindow) {
     ipcMain.handle('api:check-update', async () => {
         try {
             // 使用 Raw 連結讀取你的 JSON
-            const versionUrl = 'https://raw.githubusercontent.com/kapy0312/my-app-update/main/versions.json';
-            const response = await fetch(versionUrl);
-            if (!response.ok) throw new Error('無法連線至更新伺服器');
+            // 👇 [修改] 加上 ?t=時間戳記，強迫各國 ISP 抓取最新版本的 JSON，防止被快取
+            const versionUrl = `https://raw.githubusercontent.com/kapy0312/my-app-update/main/versions.json?t=${Date.now()}`;
+            const response = await fetchWithTimeoutAndRetry(versionUrl, { cache: 'no-store' }, 3, 10000);
+            // 💡 這裡也順便套用了你寫好的 fetchWithTimeoutAndRetry 工具，讓檢查更新更穩！
 
             const data = await response.json();
             const remoteInfo = data['YT-Media-Extractor'];

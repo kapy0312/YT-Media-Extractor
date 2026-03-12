@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initBackend } from './server.js'; // 【修改】改為載入新的 initBackend 模組
+import { initBackend, cleanupOnExit } from './server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +38,15 @@ app.whenReady().then(() => {
     });
 });
 
+// 👇 【新增】視窗全部關閉時的處理
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    cleanupOnExit(); // 👈 啟動強制清道夫：砍掉背景 yt-dlp、刪除明文 Cookie
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+// 👇 【新增】應用程式即將退出前的最後雙重保險
+app.on('before-quit', () => {
+    cleanupOnExit();
 });
