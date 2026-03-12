@@ -288,7 +288,8 @@
     </div>
 
     <div style="position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 10000;">
-        <button onclick="openLogs()" id="btnLogs"
+
+        <!-- <button onclick="openLogs()" id="btnLogs"
             style="width: fit-content; background: rgba(148, 163, 184, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
             onmouseover="this.style.background='rgba(148, 163, 184, 1)'"
             onmouseout="this.style.background='rgba(148, 163, 184, 0.8)'" title="查看診斷日誌">
@@ -300,13 +301,20 @@
             onmouseover="this.style.background='rgba(16, 185, 129, 1)'"
             onmouseout="this.style.background='rgba(16, 185, 129, 0.8)'" title="設定下載儲存位置">
             ⚙️
-        </button>
+        </button> -->
 
         <button onclick="openFolder()" id="btnFolder"
             style="width: fit-content; background: rgba(100, 116, 139, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
             onmouseover="this.style.background='rgba(100, 116, 139, 1)'"
             onmouseout="this.style.background='rgba(100, 116, 139, 0.8)'" title="開啟程式資料夾">
             📂
+        </button>
+
+        <button onclick="openDonation()" id="btnDonate"
+            style="width: fit-content; background: rgba(180, 83, 9, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+            onmouseover="this.style.background='rgba(180, 83, 9, 1)'"
+            onmouseout="this.style.background='rgba(180, 83, 9, 0.8)'" title="請開發者喝杯咖啡">
+            ☕
         </button>
 
         <button onclick="toggleLanguage()" id="btnLang"
@@ -335,21 +343,6 @@
         <div style="display: flex; gap: 10px; margin-bottom: 1.5rem;">
             <input type="text" id="url" placeholder="請貼上 YouTube 影片網址..."
                 style="flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none;">
-
-            <!-- <div class="input-group">
-                <input type="text" id="url" placeholder="請貼上 YouTube 影片網址 (限單一網址)...">
-            </div> -->
-
-            <!-- <div class="input-group" style="margin-top: -0.5rem; margin-bottom: 1.5rem; text-align: left;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                    <span id="pathLabel" style="font-size: 0.85rem; color: #64748b; font-weight: 600;">📁 儲存位置</span>
-                    <button id="btnChangePath" onclick="changeSavePath()"
-                        style="font-size: 0.75rem; padding: 4px 10px; background: #e2e8f0; color: #475569; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;">變更目錄</button>
-                </div>
-                <div id="currentPathDisplay"
-                    style="font-size: 0.8rem; color: #0ea5e9; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px dashed #cbd5e1; word-break: break-all;">
-                    載入中...</div>
-            </div> -->
 
             <div style="display: flex; gap: 5px;">
                 <button id="btnLogin" onclick="openLoginWindow()"
@@ -381,6 +374,9 @@
         </div>
 
         <div id="logs"></div>
+    </div>
+
+    <div id="logLink" class="version-display" onclick="openLogs()" style="right: auto; left: 15px;" title="查看診斷日誌">Logs
     </div>
 
     <div id="versionDisplay" class="version-display" onclick="openAppDataFolder()"
@@ -435,6 +431,8 @@
                 logAlert: "📁 即將開啟日誌資料夾。\n若遇到問題，請將最新的 main.log 檔案提供給開發者。",
                 loginYT: "登入 YT",
                 logoutYT: "登出帳號",
+                loginWarning: "⚠️ 即將開啟 YouTube 登入視窗！\n\n請在登入完成且視窗「自動關閉」前，【請勿手動關閉視窗】，系統需要一點時間在背景安全擷取您的登入憑證。",
+                eulaTitle: "📝 免責聲明與隱私權政策",
                 // 👇 新增的中文免責聲明
                 eulaTitle: "📝 免責聲明與隱私權政策",
                 eulaContent: `
@@ -446,7 +444,9 @@
                 本軟體依「現況 (As-Is)」提供，不保證永久可用性。若因平台演算法變更導致無法使用，或因個人操作造成之預期外損害，開發者恕不負責。
             `,
                 eulaCheckboxText: "我已詳細閱讀，並同意上述聲明與條款",
-                eulaBtnText: "同意並進入軟體"
+                eulaBtnText: "同意並進入軟體",
+                logLinkText: "診斷日誌",
+                btnDonateTitle: "請開發者喝杯咖啡 (贊助)"
             },
             en: {
                 appTitle: "YT-Media-Extractor",
@@ -486,6 +486,8 @@
                 logAlert: "📁 Opening log folder.\nPlease provide the latest 'main.log' to the developer if you encounter issues.",
                 loginYT: "Login YT",
                 logoutYT: "Logout",
+                loginWarning: "⚠️ Opening YouTube login window!\n\nAfter logging in, please DO NOT close the window manually. Wait for it to close automatically so the system can securely retrieve your credentials.",
+                eulaTitle: "📝 Disclaimer & Privacy Policy",
                 // 👇 新增的英文免責聲明
                 eulaTitle: "📝 Disclaimer & Privacy Policy",
                 eulaContent: `
@@ -497,7 +499,9 @@
                 This software is provided "As-Is". The developer is not responsible for any inability to use the software due to platform algorithm changes, or any unexpected damage caused by operation.
             `,
                 eulaCheckboxText: "I have read and agree to the above terms.",
-                eulaBtnText: "Agree and Enter"
+                eulaBtnText: "Agree and Enter",
+                logLinkText: "Diagnostic Logs",
+                btnDonateTitle: "Buy me a coffee (Donate)"
             }
         };
 
@@ -587,8 +591,9 @@
 
         // 頁面載入後執行
         fetchVersion();
+
         // ==========================================
-        // 1. 【補回遺失的函式】登入狀態 UI 更新
+        // 1. 登入狀態 UI 更新
         // ==========================================
         function updateLoginUI(loggedIn) {
             isUserLoggedIn = loggedIn;
@@ -599,10 +604,12 @@
             if (loggedIn) {
                 btnLogin.innerText = t.loggedIn;
                 btnLogin.style.background = '#10b981'; // 綠色
+                btnLogin.disabled = true; // 👈 已經登入成功了，把登入按鈕鎖定避免誤觸
                 btnLogout.style.display = 'block';
             } else {
                 btnLogin.innerText = t.login;
                 btnLogin.style.background = '#ef4444'; // 紅色
+                btnLogin.disabled = false; // 👈 【關鍵修復】未登入或登出後，一定要把按鈕解鎖！
                 btnLogout.style.display = 'none';
             }
         }
@@ -636,7 +643,11 @@
             // 👇 3. 右上角按鈕的「提示框 (Tooltip)」更新 (修復 undefined 消失問題)
             if (document.getElementById('btnFolder')) document.getElementById('btnFolder').title = t.folderTitle;
             if (document.getElementById('btnSetPath')) document.getElementById('btnSetPath').title = currentLang === 'zh' ? '設定下載儲存位置' : 'Set Save Location';
-            if (document.getElementById('btnLogs')) document.getElementById('btnLogs').title = t.btnLogsTitle;
+            // 👇 更新左下角日誌連結文字與提示
+            if (document.getElementById('logLink')) {
+                document.getElementById('logLink').innerText = t.logLinkText;
+                document.getElementById('logLink').title = t.btnLogsTitle;
+            }
 
             // 👇 4. 根據目前登入狀態，重繪登入按鈕文字
             updateLoginUI(isUserLoggedIn);
@@ -748,14 +759,24 @@
         });
 
         // 新增登入視窗邏輯
+        // 新增登入視窗邏輯
         async function openLoginWindow() {
             const btn = document.getElementById('btnLogin');
             const t = i18n[currentLang];
+
+            // 👇 【新增】在開啟視窗前，先跳出防呆警告！
+            alert(t.loginWarning);
+
             btn.innerText = t.loggingIn;
             btn.disabled = true;
 
+            // 同步把狀態印在日誌區讓使用者看見
+            logs.innerText = "⏳ " + t.loginWarning.split('\n')[0] + " (等待操作中...)";
+            logs.style.display = 'block';
+            logs.style.color = '#facc15'; // 黃色提醒字體
+
             try {
-                // 【修正】改用 IPC
+                // 呼叫 IPC 開啟登入視窗
                 const data = await window.api.invoke('api:login');
 
                 if (data.success && data.isLoggedIn) {
@@ -765,11 +786,15 @@
                     logs.style.color = '#86efac';
                 } else {
                     updateLoginUI(false);
-                    alert('未完成登入操作。');
+                    logs.innerText = '❌ 登入已取消或未完成。';
+                    logs.style.color = '#f87171';
+                    alert(currentLang === 'zh' ? '未完成登入操作或手動關閉了視窗。' : 'Login cancelled or incomplete.');
                 }
             } catch (err) {
-                alert('登入視窗發生錯誤');
+                alert(currentLang === 'zh' ? '登入視窗發生錯誤' : 'Login window error');
                 updateLoginUI(false); // 發生錯誤時重置 UI
+                logs.innerText = '❌ 登入發生例外錯誤。';
+                logs.style.color = '#f87171';
             }
         }
 
@@ -931,6 +956,18 @@
             await window.api.invoke('api:open-logs');
         }
 
+        // 👇 【新增】開啟贊助網址
+        async function openDonation() {
+            // 💡 之後拿到綠界網址後，請把下面這行替換成你的網址
+            const donationUrl = 'YOUR_ECPAY_URL_HERE';
+
+            if (donationUrl === 'YOUR_ECPAY_URL_HERE') {
+                alert(currentLang === 'zh' ? '贊助功能即將開放，敬請期待！' : 'Donation feature coming soon!');
+                return;
+            }
+
+            await window.api.invoke('api:open-external', donationUrl);
+        }
     </script>
 </body>
 

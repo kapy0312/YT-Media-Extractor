@@ -253,9 +253,15 @@ export function initBackend(mainWindow) {
     });
 
     // 5. 登出 API
-    ipcMain.handle('api:logout', () => {
+    ipcMain.handle('api:logout', async () => {  // 👈 【修改 1】必須加上 async
         try {
+            // 刪除實體硬碟的備份檔
             if (fs.existsSync(ENCRYPTED_COOKIE_PATH)) fs.unlinkSync(ENCRYPTED_COOKIE_PATH);
+
+            // 👇 【修改 2：關鍵修復】徹底清除 Electron 瀏覽器內部所有的暫存與 Cookie！
+            // 這樣下次打開登入視窗，才會是乾乾淨淨、需要重新輸入帳密的狀態
+            // await session.defaultSession.clearStorageData();
+
             return { success: true };
         } catch (error) {
             throw new Error(error.message);
