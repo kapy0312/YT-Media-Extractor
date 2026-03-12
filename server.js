@@ -7,6 +7,7 @@ import ffmpegPath from 'ffmpeg-static';
 import { exec } from 'child_process';
 import util from 'util';
 import AdmZip from 'adm-zip';
+import log from 'electron-log/main.js';
 
 // 【引入 Electron 原生模組】
 import { app as electronApp, BrowserWindow, session, shell, ipcMain, safeStorage, dialog } from 'electron';
@@ -47,6 +48,12 @@ const ytDlpWrap = new YTDlpClass();
 
 const DENO_PATH = path.join(APP_DATA_DIR, isWin ? 'deno.exe' : 'deno');
 let isSystemReady = false;
+
+// 配置日誌
+log.transports.file.level = 'info';
+log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
+// 自動將 console.log 轉向到 electron-log
+Object.assign(console, log.functions);
 
 async function ensureBinary() {
     if (!fs.existsSync(BINARY_PATH)) {
@@ -96,9 +103,9 @@ export function initBackend(mainWindow) {
         return { ready: isSystemReady };
     });
 
-    ipcMain.handle('api:open-external', (event, url) => {
-        shell.openExternal(url);
-    });
+    // ipcMain.handle('api:open-external', (event, url) => {
+    //     shell.openExternal(url);
+    // });
 
     // 1. 背景異步檢查/下載依賴
     ensureBinary().then(() => {
@@ -420,5 +427,12 @@ export function initBackend(mainWindow) {
     // 🚀 [新增] 開啟瀏覽器 API
     ipcMain.handle('api:open-external', (event, url) => {
         if (url) shell.openExternal(url);
+    });
+
+    // 🚀 [新增] 開啟日誌資料夾 API
+    ipcMain.handle('api:open-logs', () => {
+        const logPath = log.transports.file.getFile().path;
+        shell.showItemInFolder(logPath);
+        return { success: true };
     });
 }

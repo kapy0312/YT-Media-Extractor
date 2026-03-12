@@ -170,6 +170,13 @@
     </div>
 
     <div style="position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 10000;">
+        <button onclick="openLogs()" id="btnLogs"
+            style="width: fit-content; background: rgba(148, 163, 184, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+            onmouseover="this.style.background='rgba(148, 163, 184, 1)'"
+            onmouseout="this.style.background='rgba(148, 163, 184, 0.8)'" title="查看診斷日誌">
+            📜
+        </button>
+
         <button onclick="changeSavePath()" id="btnSetPath"
             style="width: fit-content; background: rgba(16, 185, 129, 0.8); backdrop-filter: blur(4px); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 14px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
             onmouseover="this.style.background='rgba(16, 185, 129, 1)'"
@@ -305,7 +312,9 @@
                 err403: "🚫 YouTube 拒絕了下載連線 (403 Forbidden)。\n👉 解法：請點擊右上角「🔧 修復」更新核心，或重新登入憑證。",
                 errUrl: "❌ 網址無效！請確認您輸入的是正確的 YouTube 影片網址。",
                 errBot: "🤖 觸發 YouTube 防機器人驗證！\n👉 解法：請重新點擊「登入」更新您的 Cookie 憑證。",
-                errDefault: "❌ 下載失敗！請檢查網址是否正確，或點擊上方「🔧 修復」更新核心引擎。"
+                errDefault: "❌ 下載失敗！請檢查網址是否正確，或點擊上方「🔧 修復」更新核心引擎。",
+                btnLogsTitle: "查看診斷日誌",
+                logAlert: "📁 即將開啟日誌資料夾。\n若遇到問題，請將最新的 main.log 檔案提供給開發者。"
             },
             en: {
                 appTitle: "YT-Media-Extractor",
@@ -340,7 +349,9 @@
                 err403: "🚫 Connection rejected (403 Forbidden).\n👉 Fix: Click '🔧 Fix' to update core, or re-login.",
                 errUrl: "❌ Invalid URL! Please enter a valid YouTube link.",
                 errBot: "🤖 YouTube anti-bot triggered!\n👉 Fix: Please login again to refresh your cookies.",
-                errDefault: "❌ Download failed! Please check the URL or click '🔧 Fix' to update the engine."
+                errDefault: "❌ Download failed! Please check the URL or click '🔧 Fix' to update the engine.",
+                btnLogsTitle: "View Logs",
+                logAlert: "📁 Opening log folder.\nPlease provide the latest 'main.log' to the developer if you encounter issues."
             }
         };
 
@@ -658,6 +669,10 @@
             // document.getElementById('btnChangePath').innerText = t.btnChangePath;
             // 【重要】不需要再 fetch，直接根據記住的狀態更新按鈕文字
             document.getElementById('btnSetPath').title = currentLang === 'zh' ? '設定下載儲存位置' : 'Set Save Location';
+
+            // 👇 【修正】將更新日誌按鈕 title 的程式碼移到這裡！
+            document.getElementById('btnLogs').title = t.btnLogsTitle;
+
             updateLoginUI(isUserLoggedIn);
 
             localStorage.setItem('preferredLang', currentLang);
@@ -709,6 +724,12 @@
                 // document.getElementById('currentPathDisplay').innerText = currentSavePath;
                 alert(currentLang === 'zh' ? `✅ 下載路徑已變更為：\n${currentSavePath}` : `✅ Save location changed to:\n${currentSavePath}`);
             }
+        }
+
+        async function openLogs() {
+            const t = i18n[currentLang];
+            alert(t.logAlert);
+            await window.api.invoke('api:open-logs');
         }
 
     </script>
