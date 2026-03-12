@@ -144,9 +144,16 @@ async function ensureBinary() {
     if (!fs.existsSync(DENO_PATH)) {
         console.log('[System] Deno not found, initializing auto-download...');
         try {
+            // 👇 【新增】判斷 Mac 架構 (支援 M1/M2/M3)
+            const isMacArm = !isWin && os.arch() === 'arm64';
+
+            // 👇 【修改】根據作業系統與晶片架構，派發對應的下載網址
             const zipUrl = isWin
                 ? 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip'
-                : 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip';
+                : isMacArm
+                    ? 'https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip'
+                    : 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip';
+
             const zipPath = path.join(APP_DATA_DIR, 'deno.zip');
 
             // 🚀 【升級】使用我們寫好的工具：3 次重試，每次 60 秒超時

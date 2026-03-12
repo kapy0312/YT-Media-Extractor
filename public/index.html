@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;">
     <title>YT-Media-Extractor</title>
     <style>
         :root {
@@ -145,10 +146,126 @@
         .version-display:hover {
             color: var(--primary);
         }
+
+        /* 👇 【新增】免責聲明彈窗樣式 */
+        #eulaOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .eula-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            text-align: left;
+            /* 👈 【新增】強制卡片內的文字全部靠左 */
+            position: relative;
+        }
+
+        .eula-content {
+            height: 220px;
+            overflow-y: auto;
+            background: #f8fafc;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #475569;
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        .eula-checkbox-wrapper {
+            display: flex;
+            align-items: flex-start;
+            /* 👈 【修改】對齊頂部，防止文字換行時排版跑掉 */
+            justify-content: flex-start;
+            /* 👈 【新增】強制元素從左邊開始排 */
+            gap: 0.5rem;
+            margin-bottom: 1.2rem;
+            font-size: 0.95rem;
+            cursor: pointer;
+            color: #1e293b;
+            font-weight: 500;
+            width: 100%;
+            /* 👈 【新增】佔滿整行寬度 */
+            text-align: left;
+            /* 👈 【新增】確保多行文字靠左對齊 */
+        }
+
+        .eula-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: not-allowed;
+            opacity: 0.5;
+            transition: all 0.2s;
+        }
+
+        .eula-btn.active {
+            cursor: pointer;
+            opacity: 1;
+        }
+
+        .eula-btn.active:hover {
+            background: #1d4ed8;
+        }
+
+        /* 👇 【新增】解除全域 input 設定對 Checkbox 的影響 */
+        #eulaCheckbox {
+            width: auto;
+            /* 覆寫全域的 100% 寬度，恢復原本大小 */
+            margin-bottom: 0;
+            /* 移除多餘的底部空白 */
+            margin-top: 3px;
+            /* 稍微往下推一點點，讓它跟旁邊的文字對齊 */
+            transform: scale(1.1);
+            /* 稍微放大一點點，比較好點擊 */
+            cursor: pointer;
+        }
     </style>
 </head>
 
 <body>
+
+    <div id="eulaOverlay" style="display: none;">
+        <div class="eula-card" style="position: relative;">
+
+            <h2 id="eulaTitle" style="margin-top: 0; color: #1e293b; font-size: 1.25rem;">📝 免責聲明與隱私權政策</h2>
+            <div id="eulaContent" class="eula-content">
+                <strong>1. 授權與用途限制</strong><br>
+                本軟體 (YT-Media-Extractor) 僅供個人學習與備份用途。使用者請務必遵守 YouTube
+                服務條款與各國著作權法，嚴禁將下載之影音用於商業營利、公開傳輸或侵權行為。開發者對使用者之不當使用不負任何法律連帶責任。<br><br>
+                <strong>2. 隱私權與資料處理</strong><br>
+                本軟體包含「YouTube 帳號登入」功能，以利取得高畫質影音。您的登入憑證 (Cookie)
+                <strong>僅會經由作業系統原生安全機制加密後，儲存於您電腦的本機硬碟中</strong>。本軟體絕對不會將您的帳號密碼、Cookie 或任何使用數據上傳至第三方伺服器。<br><br>
+                <strong>3. 系統風險承擔</strong><br>
+                本軟體依「現況 (As-Is)」提供，不保證永久可用性。若因平台演算法變更導致無法使用，或因個人操作造成之預期外損害，開發者恕不負責。
+            </div>
+            <label class="eula-checkbox-wrapper">
+                <input type="checkbox" id="eulaCheckbox">
+                <span id="eulaCheckboxText">我已詳細閱讀，並同意上述聲明與條款</span>
+            </label>
+            <button id="eulaBtn" class="eula-btn" disabled>同意並進入軟體</button>
+        </div>
+    </div>
 
     <div id="initMask"
         style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(5px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;">
@@ -315,7 +432,21 @@
                 errBot: "🤖 觸發 YouTube 防機器人驗證！\n👉 解法：請重新點擊「登入」更新您的 Cookie 憑證。",
                 errDefault: "❌ 下載失敗！請檢查網址是否正確，或點擊上方「🔧 修復」更新核心引擎。",
                 btnLogsTitle: "查看診斷日誌",
-                logAlert: "📁 即將開啟日誌資料夾。\n若遇到問題，請將最新的 main.log 檔案提供給開發者。"
+                logAlert: "📁 即將開啟日誌資料夾。\n若遇到問題，請將最新的 main.log 檔案提供給開發者。",
+                loginYT: "登入 YT",
+                logoutYT: "登出帳號",
+                // 👇 新增的中文免責聲明
+                eulaTitle: "📝 免責聲明與隱私權政策",
+                eulaContent: `
+                <strong>1. 授權與用途限制</strong><br>
+                本軟體 (YT-Media-Extractor) 僅供個人學習與備份用途。使用者請務必遵守 YouTube 服務條款與各國著作權法，嚴禁將下載之影音用於商業營利、公開傳輸或侵權行為。開發者對使用者之不當使用不負任何法律連帶責任。<br><br>
+                <strong>2. 隱私權與資料處理</strong><br>
+                本軟體包含「YouTube 帳號登入」功能，以利取得高畫質影音。您的登入憑證 (Cookie) <strong>僅會經由作業系統原生安全機制加密後，儲存於您電腦的本機硬碟中</strong>。本軟體絕對不會將您的帳號密碼、Cookie 或任何使用數據上傳至第三方伺服器。<br><br>
+                <strong>3. 系統風險承擔</strong><br>
+                本軟體依「現況 (As-Is)」提供，不保證永久可用性。若因平台演算法變更導致無法使用，或因個人操作造成之預期外損害，開發者恕不負責。
+            `,
+                eulaCheckboxText: "我已詳細閱讀，並同意上述聲明與條款",
+                eulaBtnText: "同意並進入軟體"
             },
             en: {
                 appTitle: "YT-Media-Extractor",
@@ -352,7 +483,21 @@
                 errBot: "🤖 YouTube anti-bot triggered!\n👉 Fix: Please login again to refresh your cookies.",
                 errDefault: "❌ Download failed! Please check the URL or click '🔧 Fix' to update the engine.",
                 btnLogsTitle: "View Logs",
-                logAlert: "📁 Opening log folder.\nPlease provide the latest 'main.log' to the developer if you encounter issues."
+                logAlert: "📁 Opening log folder.\nPlease provide the latest 'main.log' to the developer if you encounter issues.",
+                loginYT: "Login YT",
+                logoutYT: "Logout",
+                // 👇 新增的英文免責聲明
+                eulaTitle: "📝 Disclaimer & Privacy Policy",
+                eulaContent: `
+                <strong>1. License and Usage Restrictions</strong><br>
+                This software is for personal learning and backup purposes only. Users must comply with YouTube's Terms of Service and local copyright laws. Using downloaded media for commercial profit, public distribution, or copyright infringement is strictly prohibited. The developer bears no legal liability for any misuse.<br><br>
+                <strong>2. Privacy and Data Processing</strong><br>
+                This software includes a "YouTube Login" feature to retrieve high-quality media. Your login credentials (Cookies) are <strong>only encrypted using native OS security mechanisms and stored locally on your device</strong>. This software will never upload your account data to third-party servers.<br><br>
+                <strong>3. Assumption of Risk</strong><br>
+                This software is provided "As-Is". The developer is not responsible for any inability to use the software due to platform algorithm changes, or any unexpected damage caused by operation.
+            `,
+                eulaCheckboxText: "I have read and agree to the above terms.",
+                eulaBtnText: "Agree and Enter"
             }
         };
 
@@ -372,6 +517,42 @@
                 console.error('無法檢查登入狀態', err);
             }
         };
+
+        // 👇 【新增】檢查並控制 EULA 免責聲明
+        document.addEventListener('DOMContentLoaded', () => {
+            // 👇 在這裡偷偷加上這行「強制失憶藥水」
+            // localStorage.removeItem('eulaAgreed');
+
+            // 👇 【關鍵修復】一打開網頁，先根據目前的 currentLang 渲染一次免責聲明的文字
+            updateUI();
+
+            const eulaAgreed = localStorage.getItem('eulaAgreed');
+            const eulaOverlay = document.getElementById('eulaOverlay');
+            const eulaCheckbox = document.getElementById('eulaCheckbox');
+            const eulaBtn = document.getElementById('eulaBtn');
+
+            // 如果沒有同意過，就顯示遮罩層攔截操作
+            if (!eulaAgreed) {
+                eulaOverlay.style.display = 'flex';
+            }
+
+            eulaCheckbox.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    eulaBtn.disabled = false;
+                    eulaBtn.classList.add('active');
+                } else {
+                    eulaBtn.disabled = true;
+                    eulaBtn.classList.remove('active');
+                }
+            });
+
+            eulaBtn.addEventListener('click', () => {
+                if (eulaCheckbox.checked) {
+                    localStorage.setItem('eulaAgreed', 'true'); // 記錄在瀏覽器本地
+                    eulaOverlay.style.display = 'none'; // 隱藏遮罩
+                }
+            });
+        });
 
         // ==========================================
         // 【新增】錯誤訊息翻譯機
@@ -397,7 +578,7 @@
         async function fetchVersion() {
             try {
                 window.api.invoke('api:version').then(data => {
-                    document.getElementById('versionDisplay').innerText = `v${data.version}`;
+                    document.getElementById('versionDisplay').innerText = `v${data.version} for KapyLai`;
                 }).catch(() => console.error("無法取得版本號"));
             } catch (err) {
                 console.error('無法獲取版本:', err);
@@ -406,25 +587,59 @@
 
         // 頁面載入後執行
         fetchVersion();
-
-        // 更新 UI 狀態的獨立函式
-        function updateLoginUI(isLoggedIn) {
-            isUserLoggedIn = isLoggedIn; // 更新全域變數，讓 toggleLanguage 知道現在狀態
+        // ==========================================
+        // 1. 【補回遺失的函式】登入狀態 UI 更新
+        // ==========================================
+        function updateLoginUI(loggedIn) {
+            isUserLoggedIn = loggedIn;
             const btnLogin = document.getElementById('btnLogin');
             const btnLogout = document.getElementById('btnLogout');
-            const t = i18n[currentLang]; // 抓取當前字典
+            const t = i18n[currentLang];
 
-            if (isLoggedIn) {
-                // 【修正】使用字典變數，不要用 '✅ 已登入 (解鎖 4K)'
+            if (loggedIn) {
                 btnLogin.innerText = t.loggedIn;
-                btnLogin.style.background = '#10b981';
+                btnLogin.style.background = '#10b981'; // 綠色
                 btnLogout.style.display = 'block';
             } else {
-                // 【修正】使用字典變數，不要用 '登入解鎖 4K'
                 btnLogin.innerText = t.login;
-                btnLogin.style.background = '#ef4444';
+                btnLogin.style.background = '#ef4444'; // 紅色
                 btnLogout.style.display = 'none';
             }
+        }
+
+        // ==========================================
+        // 2. 【修復並清理】更新 UI 狀態的獨立函式
+        // ==========================================
+        function updateUI() {
+            const t = i18n[currentLang];
+            document.title = t.appTitle; // 更新視窗標題
+
+            // 👇 1. 免責聲明文字更新
+            const eulaTitleEl = document.getElementById('eulaTitle');
+            if (eulaTitleEl) {
+                eulaTitleEl.innerText = t.eulaTitle;
+                document.getElementById('eulaContent').innerHTML = t.eulaContent;
+                document.getElementById('eulaCheckboxText').innerText = t.eulaCheckboxText;
+                document.getElementById('eulaBtn').innerText = t.eulaBtnText;
+            }
+
+            // 👇 2. 主畫面文字更新 (精準對應現在的 HTML ID)
+            if (document.getElementById('appTitle')) document.getElementById('appTitle').innerText = t.appTitle;
+            if (document.getElementById('url')) document.getElementById('url').placeholder = t.placeholder;
+            if (document.getElementById('btnMp3')) document.getElementById('btnMp3').innerText = t.dlMp3;
+            if (document.getElementById('btnMp4')) document.getElementById('btnMp4').innerText = t.dlMp4;
+            if (document.getElementById('btnFix')) document.getElementById('btnFix').innerText = t.fixBtn;
+            if (document.getElementById('btnLang')) document.getElementById('btnLang').innerText = t.langBtn;
+            if (document.getElementById('initTitle')) document.getElementById('initTitle').innerText = t.initTitle;
+            if (document.getElementById('initDesc')) document.getElementById('initDesc').innerText = t.initDesc;
+
+            // 👇 3. 右上角按鈕的「提示框 (Tooltip)」更新 (修復 undefined 消失問題)
+            if (document.getElementById('btnFolder')) document.getElementById('btnFolder').title = t.folderTitle;
+            if (document.getElementById('btnSetPath')) document.getElementById('btnSetPath').title = currentLang === 'zh' ? '設定下載儲存位置' : 'Set Save Location';
+            if (document.getElementById('btnLogs')) document.getElementById('btnLogs').title = t.btnLogsTitle;
+
+            // 👇 4. 根據目前登入狀態，重繪登入按鈕文字
+            updateLoginUI(isUserLoggedIn);
         }
 
         // 登出功能
@@ -650,34 +865,17 @@
             }
         }
 
+        // ==========================================
+        // 3. 【極簡化】切換語言函式
+        // ==========================================
         function toggleLanguage() {
             currentLang = (currentLang === 'zh') ? 'en' : 'zh';
-            const t = i18n[currentLang];
-
-            // 瞬間更新所有文字
-            document.getElementById('appTitle').innerText = t.appTitle;
-            document.getElementById('btnLang').innerText = t.langBtn;
-            document.getElementById('btnFix').innerText = t.fixBtn;
-            document.getElementById('url').placeholder = t.placeholder;
-            document.getElementById('btnLogin').innerText = t.loggedIn;
-            document.getElementById('btnLogout').innerText = t.logout;
-            document.getElementById('btnMp3').innerText = t.dlMp3;
-            document.getElementById('btnMp4').innerText = t.dlMp4;
-            document.getElementById('initTitle').innerText = t.initTitle;
-            document.getElementById('initDesc').innerText = t.initDesc;
-            document.getElementById('btnFolder').title = t.folderTitle;
-            // document.getElementById('pathLabel').innerText = t.pathLabel;
-            // document.getElementById('btnChangePath').innerText = t.btnChangePath;
-            // 【重要】不需要再 fetch，直接根據記住的狀態更新按鈕文字
-            document.getElementById('btnSetPath').title = currentLang === 'zh' ? '設定下載儲存位置' : 'Set Save Location';
-
-            // 👇 【修正】將更新日誌按鈕 title 的程式碼移到這裡！
-            document.getElementById('btnLogs').title = t.btnLogsTitle;
-
-            updateLoginUI(isUserLoggedIn);
-
             localStorage.setItem('preferredLang', currentLang);
+
+            // 呼叫上方寫好的 updateUI，一次性把所有畫面翻新！
+            updateUI();
         }
+
         // 頁面載入時檢查上次的語系設定F
         window.addEventListener('DOMContentLoaded', async () => {
             const savedLang = localStorage.getItem('preferredLang');
