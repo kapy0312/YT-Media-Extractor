@@ -55,13 +55,96 @@ log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
 // 自動將 console.log 轉向到 electron-log
 Object.assign(console, log.functions);
 
+// async function ensureBinary() {
+//     if (!fs.existsSync(BINARY_PATH)) {
+//         console.log('[System] Downloading yt-dlp...');
+//         await YTDlpClass.downloadFromGithub(BINARY_PATH);
+//     }
+//     ytDlpWrap.setBinaryPath(BINARY_PATH);
+
+//     if (!fs.existsSync(DENO_PATH)) {
+//         console.log('[System] Deno not found, initializing auto-download...');
+//         try {
+//             const zipUrl = isWin
+//                 ? 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip'
+//                 : 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip';
+//             const zipPath = path.join(APP_DATA_DIR, 'deno.zip');
+
+//             const response = await fetch(zipUrl);
+//             if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+
+//             const buffer = await response.arrayBuffer();
+//             fs.writeFileSync(zipPath, Buffer.from(buffer));
+
+//             const zip = new AdmZip(zipPath);
+//             zip.extractAllTo(APP_DATA_DIR, true);
+
+//             if (!isWin) fs.chmodSync(DENO_PATH, 0o755);
+//             fs.unlinkSync(zipPath);
+//             console.log(`[System] Deno downloaded successfully!`);
+//         } catch (error) {
+//             console.error('[System] Failed to download Deno:', error.message);
+//         }
+//     }
+// }
+
+// ==========================================
+// 【核心功能】初始化後端並註冊所有 IPC API
+// ==========================================
+
+// ==========================================
+// 🌐 網路請求工具：支援超時與重試機制
+// ==========================================
+async function fetchWithTimeoutAndRetry(url, options = {}, retries = 3, timeoutMs = 60000) {
+    for (let i = 0; i < retries; i++) {
+        const controller = new AbortController(); // 用來中斷請求的控制器
+        const id = setTimeout(() => controller.abort(), timeoutMs); // 設定超時自動中斷
+
+        try {
+            console.log(`[Network] Fetching ${url} (Attempt ${i + 1}/${retries})...`);
+            // 將信號 (signal) 傳給 fetch，這樣超時的時候才能強制拔線
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            clearTimeout(id); // 成功連線就解除定時炸彈
+
+            if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+            return response;
+        } catch (error) {
+            clearTimeout(id);
+            const isTimeout = error.name === 'AbortError';
+            const errMsg = isTimeout ? '連線超時 (Timeout)' : error.message;
+
+            console.warn(`[Network] Download failed (Attempt ${i + 1}/${retries}): ${errMsg}`);
+
+            if (i === retries - 1) throw new Error(`嘗試 ${retries} 次後皆失敗: ${errMsg}`);
+
+            // 失敗後不要馬上重試，等待 3 秒讓網路喘息一下
+            await new Promise(res => setTimeout(res, 3000));
+        }
+    }
+}
+
+// ==========================================
+// 📦 確保依賴組件存在 (含超時重試機制)
+// ==========================================
 async function ensureBinary() {
+    // 1. 檢查並下載 yt-dlp (加入 3 次重試機制)
     if (!fs.existsSync(BINARY_PATH)) {
         console.log('[System] Downloading yt-dlp...');
-        await YTDlpClass.downloadFromGithub(BINARY_PATH);
+        for (let i = 0; i < 3; i++) {
+            try {
+                await YTDlpClass.downloadFromGithub(BINARY_PATH);
+                console.log('[System] yt-dlp downloaded successfully!');
+                break; // 成功就跳出迴圈
+            } catch (err) {
+                console.warn(`[System] yt-dlp download failed (Attempt ${i + 1}/3): ${err.message}`);
+                if (i === 2) console.error('[System] Failed to download yt-dlp after 3 attempts.');
+                else await new Promise(res => setTimeout(res, 3000));
+            }
+        }
     }
     ytDlpWrap.setBinaryPath(BINARY_PATH);
 
+    // 2. 檢查並下載 Deno (使用自訂的超時重試 fetch)
     if (!fs.existsSync(DENO_PATH)) {
         console.log('[System] Deno not found, initializing auto-download...');
         try {
@@ -70,8 +153,8 @@ async function ensureBinary() {
                 : 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip';
             const zipPath = path.join(APP_DATA_DIR, 'deno.zip');
 
-            const response = await fetch(zipUrl);
-            if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+            // 🚀 【升級】使用我們寫好的工具：3 次重試，每次 60 秒超時
+            const response = await fetchWithTimeoutAndRetry(zipUrl, {}, 3, 60000);
 
             const buffer = await response.arrayBuffer();
             fs.writeFileSync(zipPath, Buffer.from(buffer));
@@ -83,14 +166,11 @@ async function ensureBinary() {
             fs.unlinkSync(zipPath);
             console.log(`[System] Deno downloaded successfully!`);
         } catch (error) {
-            console.error('[System] Failed to download Deno:', error.message);
+            console.error('[System] Deno installation aborted:', error.message);
         }
     }
 }
 
-// ==========================================
-// 【核心功能】初始化後端並註冊所有 IPC API
-// ==========================================
 export function initBackend(mainWindow) {
     mainWindowInstance = mainWindow;
 
@@ -102,10 +182,6 @@ export function initBackend(mainWindow) {
     ipcMain.handle('api:is-system-ready', () => {
         return { ready: isSystemReady };
     });
-
-    // ipcMain.handle('api:open-external', (event, url) => {
-    //     shell.openExternal(url);
-    // });
 
     // 1. 背景異步檢查/下載依賴
     ensureBinary().then(() => {
