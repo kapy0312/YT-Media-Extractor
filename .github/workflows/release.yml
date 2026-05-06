@@ -144,7 +144,9 @@ jobs:
           REPO="${{ env.RELEASE_REPO }}"
 
           # 找出 Windows 7z 檔名
-          WIN_FILE=$(ls release-files/*.7z | head -1 | xargs basename)
+          WIN_FILE=$(ls release-files/*.7z 2>/dev/null | head -1)
+          [ -z "$WIN_FILE" ] && WIN_FILE=$(ls release-files/*.exe 2>/dev/null | head -1)
+          WIN_FILE=$(basename "$WIN_FILE")
 
           # 組裝下載 URL
           DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_FILE}"

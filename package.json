@@ -1,6 +1,6 @@
 {
   "name": "yt-media-extractor",
-  "version": "2.6.7",
+  "version": "2.6.8",
   "description": "YouTube Media Extractor Tool",
   "author": "YourName",
   "type": "module",
@@ -24,7 +24,7 @@
       "output": "dist"
     },
     "win": {
-      "target": "nsis",
+      "target": ["nsis", "7z"],
       "icon": "logo.ico"
     },
     "asarUnpack": [
