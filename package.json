@@ -1,6 +1,6 @@
 {
   "name": "yt-media-extractor",
-  "version": "2.6.6",
+  "version": "2.6.7",
   "description": "YouTube Media Extractor Tool",
   "author": "YourName",
   "type": "module",
@@ -15,9 +15,10 @@
   "build": {
     "appId": "com.kevin.ytdownloader",
     "productName": "YT-Media-Extractor",
-    "mac": {
+  "mac": {
       "target": "dmg",
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "icon": "logo.icns"
     },
     "directories": {
       "output": "dist"

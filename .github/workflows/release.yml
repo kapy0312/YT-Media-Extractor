@@ -42,7 +42,7 @@ jobs:
       - name: 🔨 Build Windows (.exe + .7z)
         run: npm run build
         env:
-          GH_TOKEN: ${{ secrets.YTmedia-Release-Token }}
+          GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
 
       - name: 📤 Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -77,7 +77,7 @@ jobs:
       - name: 🔨 Build macOS (.dmg)
         run: npm run build:mac
         env:
-          GH_TOKEN: ${{ secrets.YTmedia-Release-Token }}
+          GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
 
       - name: 📤 Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -132,7 +132,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ env.RELEASE_REPO }}
-          token: ${{ secrets.YTmedia-Release-Token }}
+          token: ${{ secrets.YTmedia_Release_Token }}
           path: release-repo
 
       # ── 更新 versions.json ───────────────
@@ -177,7 +177,7 @@ jobs:
       # ── 刪除舊 Release / Tag（滾動更新）──
       - name: 🗑️ 刪除舊 Release & Tag
         env:
-          GH_TOKEN: ${{ secrets.YTmedia-Release-Token }}
+          GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
         run: |
           TAG="${{ env.RELEASE_TAG }}"
           REPO="${{ env.RELEASE_REPO }}"
@@ -193,7 +193,7 @@ jobs:
       # ── 建立新 Release ───────────────────
       - name: 🚀 建立 GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.YTmedia-Release-Token }}
+          GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
         run: |
           VERSION="${{ steps.get_version.outputs.VERSION }}"
           TAG="${{ env.RELEASE_TAG }}"
