@@ -1,0 +1,219 @@
+name: 🚀 Build & Release YT-Media-Extractor
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: '手動指定版本號 (留空則讀取 package.json)'
+        required: false
+        default: ''
+
+# ─────────────────────────────────────────
+#  全域變數
+# ─────────────────────────────────────────
+env:
+  RELEASE_REPO: kapy0312/my-app-update   # 負責發佈的 repo
+  RELEASE_TAG:  yt-v.latest              # 滾動式 latest tag
+  APP_NAME:     YT-Media-Extractor
+
+# ═════════════════════════════════════════
+#  JOB 1 ── Windows 建置
+# ═════════════════════════════════════════
+jobs:
+  build-windows:
+    name: 🪟 Build Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: ⬇️ Checkout 源碼
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔨 Build Windows (.exe + .7z)
+        run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.YTmedia-Release-Token }}
+
+      - name: 📤 Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: |
+            dist/*.exe
+            dist/*.7z
+          if-no-files-found: error
+          retention-days: 1
+
+# ═════════════════════════════════════════
+#  JOB 2 ── macOS 建置
+# ═════════════════════════════════════════
+  build-macos:
+    name: 🍎 Build macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: ⬇️ Checkout 源碼
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔨 Build macOS (.dmg)
+        run: npm run build:mac
+        env:
+          GH_TOKEN: ${{ secrets.YTmedia-Release-Token }}
+
+      - name: 📤 Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dist
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 1
+
+# ═════════════════════════════════════════
+#  JOB 3 ── 發佈 Release + 更新 versions.json
+# ═════════════════════════════════════════
+  release:
+    name: 🎯 Publish Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout 源碼 (讀取 package.json 版本號)
+        uses: actions/checkout@v4
+
+      # ── 讀取版本號 ──────────────────────
+      - name: 🔖 取得版本號
+        id: get_version
+        run: |
+          if [ -n "${{ github.event.inputs.version_override }}" ]; then
+            VERSION="${{ github.event.inputs.version_override }}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ 版本號：$VERSION"
+
+      # ── 下載所有建置產物 ─────────────────
+      - name: ⬇️ Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-dist
+          path: release-files/
+
+      - name: ⬇️ Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dist
+          path: release-files/
+
+      - name: 📋 列出所有 release 檔案
+        run: ls -lh release-files/
+
+      # ── Checkout 發佈 repo ───────────────
+      - name: ⬇️ Checkout 發佈 repo (${{ env.RELEASE_REPO }})
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.RELEASE_REPO }}
+          token: ${{ secrets.YTmedia-Release-Token }}
+          path: release-repo
+
+      # ── 更新 versions.json ───────────────
+      - name: 📝 更新 versions.json
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          APP="${{ env.APP_NAME }}"
+          TAG="${{ env.RELEASE_TAG }}"
+          REPO="${{ env.RELEASE_REPO }}"
+
+          # 找出 Windows 7z 檔名
+          WIN_FILE=$(ls release-files/*.7z | head -1 | xargs basename)
+
+          # 組裝下載 URL
+          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_FILE}"
+
+          # 更新 versions.json
+          JSON_PATH="release-repo/yt-extractor/versions.json"
+          cat > "$JSON_PATH" << EOF
+          {
+            "${APP}": {
+              "latest_version": "${VERSION}",
+              "download_url": "${DOWNLOAD_URL}"
+            }
+          }
+          EOF
+
+          echo "✅ versions.json 已更新："
+          cat "$JSON_PATH"
+
+      # ── Git push versions.json ───────────
+      - name: 📬 Commit & Push versions.json
+        run: |
+          cd release-repo
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add yt-extractor/versions.json
+          git diff --cached --quiet && echo "⏭️ 無變更，跳過 commit" || \
+            git commit -m "chore: bump ${{ env.APP_NAME }} to v${{ steps.get_version.outputs.VERSION }}"
+          git push
+
+      # ── 刪除舊 Release / Tag（滾動更新）──
+      - name: 🗑️ 刪除舊 Release & Tag
+        env:
+          GH_TOKEN: ${{ secrets.YTmedia-Release-Token }}
+        run: |
+          TAG="${{ env.RELEASE_TAG }}"
+          REPO="${{ env.RELEASE_REPO }}"
+
+          # 嘗試刪除舊 release（若不存在忽略錯誤）
+          gh release delete "$TAG" --repo "$REPO" --yes 2>/dev/null || true
+
+          # 嘗試刪除舊 tag
+          gh api -X DELETE "repos/${REPO}/git/refs/tags/${TAG}" 2>/dev/null || true
+
+          echo "✅ 舊 Release 清除完畢"
+
+      # ── 建立新 Release ───────────────────
+      - name: 🚀 建立 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.YTmedia-Release-Token }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          TAG="${{ env.RELEASE_TAG }}"
+          REPO="${{ env.RELEASE_REPO }}"
+
+          gh release create "$TAG" \
+            --repo "$REPO" \
+            --title "${{ env.APP_NAME }} v${VERSION}" \
+            --notes "## 🎉 ${{ env.APP_NAME }} v${VERSION}
+
+          ### 📥 下載說明
+          - **Windows**：下載 \`.exe\` 安裝包 或 \`.7z\` 免安裝版
+          - **macOS**：下載 \`.dmg\` 映像檔（支援 Intel / Apple Silicon M1/M2/M3）
+
+          ### 🔄 自動更新
+          本 Release 採用滾動更新機制，tag \`${TAG}\` 永遠指向最新版本。
+
+          ---
+          Built by GitHub Actions · $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --latest \
+            release-files/*
+
+          echo "✅ Release 發佈完成！"

@@ -505,7 +505,7 @@ export function initBackend(mainWindow) {
         try {
             // 使用 Raw 連結讀取你的 JSON
             // 👇 [修改] 加上 ?t=時間戳記，強迫各國 ISP 抓取最新版本的 JSON，防止被快取
-            const versionUrl = `https://raw.githubusercontent.com/kapy0312/my-app-update/main/versions.json?t=${Date.now()}`;
+            const versionUrl = `https://raw.githubusercontent.com/kapy0312/my-app-update/main/yt-extractor/versions.json?t=${Date.now()}`;
             const response = await fetchWithTimeoutAndRetry(versionUrl, { cache: 'no-store' }, 3, 10000);
             // 💡 這裡也順便套用了你寫好的 fetchWithTimeoutAndRetry 工具，讓檢查更新更穩！
 
