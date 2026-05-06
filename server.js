@@ -503,22 +503,24 @@ export function initBackend(mainWindow) {
     // 🚀 [新增] 檢查更新 API
     ipcMain.handle('api:check-update', async () => {
         try {
-            // 使用 Raw 連結讀取你的 JSON
-            // 👇 [修改] 加上 ?t=時間戳記，強迫各國 ISP 抓取最新版本的 JSON，防止被快取
             const versionUrl = `https://raw.githubusercontent.com/kapy0312/my-app-update/main/yt-extractor/versions.json?t=${Date.now()}`;
             const response = await fetchWithTimeoutAndRetry(versionUrl, { cache: 'no-store' }, 3, 10000);
-            // 💡 這裡也順便套用了你寫好的 fetchWithTimeoutAndRetry 工具，讓檢查更新更穩！
 
             const data = await response.json();
             const remoteInfo = data['YT-Media-Extractor'];
-            const currentVersion = electronApp.getVersion(); // 抓取 package.json 裡的 version
+            const currentVersion = electronApp.getVersion();
 
-            // 比對版本號
             if (remoteInfo && remoteInfo.latest_version !== currentVersion) {
+                // 👇 判斷平台，選對應載點
+                const isMac = os.platform() === 'darwin';
+                const downloadUrl = isMac
+                    ? remoteInfo.download_url_mac
+                    : remoteInfo.download_url_win;
+
                 return {
                     hasUpdate: true,
                     latestVersion: remoteInfo.latest_version,
-                    downloadUrl: remoteInfo.download_url
+                    downloadUrl: downloadUrl
                 };
             }
             return { hasUpdate: false };
