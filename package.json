@@ -1,6 +1,6 @@
 {
   "name": "yt-media-extractor",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "description": "YouTube Media Extractor Tool",
   "author": "YourName",
   "type": "module",
@@ -26,6 +26,9 @@
     "win": {
       "target": ["nsis"],
       "icon": "logo.ico"
+    },
+    "nsis": {
+      "artifactName": "YT-Media-Extractor.Setup.${version}.exe"
     },
     "asarUnpack": [
       "**/node_modules/ffmpeg-static/**/*"

@@ -1,35 +1,50 @@
-import { app, BrowserWindow, Menu } from 'electron'; // 👈 【新增】引入 Menu 模組
+import { app, BrowserWindow, Menu } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initBackend, cleanupOnExit } from './server.js';
+import { initBackend, cleanupOnExit, updateMainWindow } from './server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow;
+let backendInitialized = false; // 👈 【新增】防止 IPC 重複註冊的鎖
 
 function createWindow() {
-    // 👇 【新增】徹底拔除所有預設的應用程式選單 (File, Edit, View 等)
     Menu.setApplicationMenu(null);
 
     mainWindow = new BrowserWindow({
         width: 600,
         height: 700,
-        autoHideMenuBar: true, // 保留你原本隱藏選單列的設定
-        icon: path.join(__dirname, 'logo.ico'), // 👈 【新增】設定視窗左上角與工作列的圖示
+        autoHideMenuBar: true,
+        icon: path.join(__dirname, 'logo.ico'),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.cjs') // 【新增】掛載安全橋樑
+            preload: path.join(__dirname, 'preload.cjs')
         }
     });
 
-    // 【修改】不再等待 Port，直接載入本地的 index.html
-    // 根據你的專案結構，index.html 放在 public 資料夾下
     mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
 
-    // 【新增】初始化後端，把 mainWindow 傳遞給 server.js 以便發送進度條與日誌
-    initBackend(mainWindow);
+    // 👇 【新增】右鍵選單（複製/貼上）
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        const menu = Menu.buildFromTemplate([
+            { role: 'cut', label: '剪下' },
+            { role: 'copy', label: '複製' },
+            { role: 'paste', label: '貼上' },
+            { type: 'separator' },
+            { role: 'selectAll', label: '全選' }
+        ]);
+        menu.popup();
+    });
+
+    // 👇 【修復】只初始化一次，避免重複註冊 IPC Handler
+    if (!backendInitialized) {
+        initBackend(mainWindow);
+        backendInitialized = true;
+    } else {
+        updateMainWindow(mainWindow);
+    }
 }
 
 app.whenReady().then(() => {
@@ -37,20 +52,21 @@ app.whenReady().then(() => {
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow(); // 這樣寫 MacOS 點擊 dock 圖示時才能正確重新開啟
+            createWindow();
+        } else {
+            // 👇 Mac 點擊 Dock 時只更新視窗實例，不重新初始化後端
+            mainWindow.show();
         }
     });
 });
 
-// 👇 【新增】視窗全部關閉時的處理
 app.on('window-all-closed', () => {
-    cleanupOnExit(); // 👈 啟動強制清道夫：砍掉背景 yt-dlp、刪除明文 Cookie
+    cleanupOnExit();
     if (process.platform !== 'darwin') {
         app.quit();
     }
 });
 
-// 👇 【新增】應用程式即將退出前的最後雙重保險
 app.on('before-quit', () => {
     cleanupOnExit();
 });

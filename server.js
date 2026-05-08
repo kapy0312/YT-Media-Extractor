@@ -69,6 +69,10 @@ let activeTempCookiePath = null;
 let isDownloading = false; // 後端併發鎖
 
 // 👇 [新增] 強制清道夫函式：確保軟體關閉時絕對不會留下明文 Cookie 或殭屍行程
+export function updateMainWindow(window) {
+    mainWindowInstance = window;
+}
+
 export function cleanupOnExit() {
     if (currentYtDlpProcess && !currentYtDlpProcess.killed) {
         try {
@@ -123,6 +127,30 @@ async function fetchWithTimeoutAndRetry(url, options = {}, retries = 3, timeoutM
 // 📦 確保依賴組件存在 (含超時重試機制)
 // ==========================================
 async function ensureBinary() {
+    // 👇 【新增】macOS 自動偵測並引導安裝 CLI Tools
+    if (!isWin) {
+        try {
+            await execPromise('xcode-select -p');
+        } catch (e) {
+            // 找不到 CLI Tools，主動跳出友善提示
+            await dialog.showMessageBox({
+                type: 'warning',
+                title: '需要安裝系統工具',
+                message: '首次使用需安裝 macOS 指令列工具',
+                detail: '系統將彈出安裝視窗，請點擊「安裝」，完成後重新啟動軟體即可正常使用。',
+                buttons: ['開始安裝'],
+                defaultId: 0
+            });
+            exec('xcode-select --install');
+            if (mainWindowInstance) {
+                mainWindowInstance.webContents.send('log', '⏳ 請完成系統工具安裝後，重新啟動軟體。');
+            }
+            isSystemReady = true;
+            if (mainWindowInstance) mainWindowInstance.webContents.send('systemReady');
+            return;
+        }
+    }
+
     // 1. 檢查並下載 yt-dlp (加入 3 次重試機制)
     if (!fs.existsSync(BINARY_PATH)) {
         console.log('[System] Downloading yt-dlp...');
