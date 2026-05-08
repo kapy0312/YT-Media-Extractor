@@ -152,18 +152,26 @@ async function ensureBinary() {
     }
 
     // 1. 檢查並下載 yt-dlp (加入 3 次重試機制)
+    // 👇 如果存在但是資料夾（舊的錯誤下載），先刪掉
+    if (fs.existsSync(BINARY_PATH) && fs.statSync(BINARY_PATH).isDirectory()) {
+        fs.rmSync(BINARY_PATH, { recursive: true });
+        console.log('[System] Removed incorrect yt-dlp directory.');
+    }
+
     if (!fs.existsSync(BINARY_PATH)) {
-        console.log('[System] Downloading yt-dlp...');
-        for (let i = 0; i < 3; i++) {
-            try {
-                await YTDlpClass.downloadFromGithub(BINARY_PATH);
-                console.log('[System] yt-dlp downloaded successfully!');
-                break; // 成功就跳出迴圈
-            } catch (err) {
-                console.warn(`[System] yt-dlp download failed (Attempt ${i + 1}/3): ${err.message}`);
-                if (i === 2) console.error('[System] Failed to download yt-dlp after 3 attempts.');
-                else await new Promise(res => setTimeout(res, 3000));
-            }
+        console.log('[System] Downloading yt-dlp standalone binary...');
+        try {
+            const ytDlpUrl = isWin
+                ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+                : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos';
+
+            const response = await fetchWithTimeoutAndRetry(ytDlpUrl, {}, 3, 120000);
+            const buffer = await response.arrayBuffer();
+            fs.writeFileSync(BINARY_PATH, Buffer.from(buffer));
+            if (!isWin) fs.chmodSync(BINARY_PATH, 0o755);
+            console.log('[System] yt-dlp downloaded successfully!');
+        } catch (err) {
+            console.error('[System] Failed to download yt-dlp:', err.message);
         }
     }
     ytDlpWrap.setBinaryPath(BINARY_PATH);
