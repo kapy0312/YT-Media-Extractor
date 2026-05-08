@@ -418,10 +418,16 @@ export function initBackend(mainWindow) {
                 }
 
                 if (downloadFormat === 'mp4') {
-                    args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best');
-                    args.push('--merge-output-format', 'mp4');
-                } else {
-                    args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0');
+                    if (isWin) {
+                        // Windows 走原本路徑
+                        args.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best');
+                        args.push('--merge-output-format', 'mp4');
+                    } else {
+                        // macOS 指定不需要 Python 的格式，完全交給 FFmpeg 合併
+                        args.push('-f', 'bestvideo[ext=mp4][vcodec^=avc]+bestaudio[ext=m4a]/best[ext=mp4]');
+                        args.push('--merge-output-format', 'mp4');
+                        args.push('--no-post-overwrites');
+                    }
                 }
 
                 const ytDlpProcess = ytDlpWrap.exec(args);
