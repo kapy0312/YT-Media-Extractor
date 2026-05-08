@@ -307,7 +307,14 @@ export function initBackend(mainWindow) {
     // 6. 修復引擎 API
     ipcMain.handle('api:fix-engine', async () => {
         try {
-            if (fs.existsSync(BINARY_PATH)) fs.unlinkSync(BINARY_PATH);
+            if (fs.existsSync(BINARY_PATH)) {
+                const stat = fs.statSync(BINARY_PATH);
+                if (stat.isDirectory()) {
+                    fs.rmSync(BINARY_PATH, { recursive: true });
+                } else {
+                    fs.unlinkSync(BINARY_PATH);
+                }
+            }
             await ensureBinary();
             return { success: true };
         } catch (error) {
