@@ -168,7 +168,10 @@ async function ensureBinary() {
             const response = await fetchWithTimeoutAndRetry(ytDlpUrl, {}, 3, 120000);
             const buffer = await response.arrayBuffer();
             fs.writeFileSync(BINARY_PATH, Buffer.from(buffer));
-            if (!isWin) fs.chmodSync(BINARY_PATH, 0o755);
+            if (!isWin) {
+                fs.chmodSync(BINARY_PATH, 0o755);
+                await execPromise(`xattr -cr "${BINARY_PATH}"`);
+            }
             console.log('[System] yt-dlp downloaded successfully!');
         } catch (err) {
             console.error('[System] Failed to download yt-dlp:', err.message);
@@ -202,6 +205,7 @@ async function ensureBinary() {
             zip.extractAllTo(APP_DATA_DIR, true);
 
             if (!isWin) fs.chmodSync(DENO_PATH, 0o755);
+            if (!isWin) await execPromise(`xattr -cr "${DENO_PATH}"`);
             fs.unlinkSync(zipPath);
             console.log(`[System] Deno downloaded successfully!`);
         } catch (error) {
