@@ -78,15 +78,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
 
-      - name: 📝 建立 Mac 安裝輔助腳本
+      - name: 📝 建立 macOS 安裝說明
         run: |
-          cat > dist/安裝後請執行此檔案.command << 'EOF'
-          #!/bin/bash
+          cat > dist/macOS安裝說明.txt << 'EOF'
+          YT-Media-Extractor - macOS 安裝說明
+          =====================================
+
+          1. 雙擊 .dmg 檔案
+          2. 把 YT-Media-Extractor 拖進 Applications 資料夾
+          3. 到 Applications 找到 YT-Media-Extractor
+          4. 右鍵 → 打開 → 打開（首次需要這樣做）
+          5. 之後可以直接雙擊開啟
+
+          如果右鍵打開還是被擋住，請開啟 Terminal 執行：
           xattr -cr /Applications/YT-Media-Extractor.app
-          echo "✅ 完成！現在可以開啟 YT-Media-Extractor 了"
-          open /Applications/YT-Media-Extractor.app
+
+          =====================================
+          首次啟動需下載核心組件，約需 30 秒請耐心等候。
           EOF
-          chmod +x dist/安裝後請執行此檔案.command
 
       - name: 📤 Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -94,7 +103,7 @@ jobs:
           name: macos-dist
           path: |
             dist/*.dmg
-            dist/*.command
+            dist/*.txt
           if-no-files-found: error
           retention-days: 1
 
