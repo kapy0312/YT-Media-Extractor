@@ -6,17 +6,17 @@ on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: '手動指定版本號 (留空則讀取 package.json)'
+        description: "手動指定版本號 (留空則讀取 package.json)"
         required: false
-        default: ''
+        default: ""
 
 # ─────────────────────────────────────────
 #  全域變數
 # ─────────────────────────────────────────
 env:
-  RELEASE_REPO: kapy0312/my-app-update   # 負責發佈的 repo
-  RELEASE_TAG:  yt-v.latest              # 滾動式 latest tag
-  APP_NAME:     YT-Media-Extractor
+  RELEASE_REPO: kapy0312/my-app-update # 負責發佈的 repo
+  RELEASE_TAG: yt-v.latest # 滾動式 latest tag
+  APP_NAME: YT-Media-Extractor
 
 # ═════════════════════════════════════════
 #  JOB 1 ── Windows 建置
@@ -33,8 +33,8 @@ jobs:
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: 📦 Install dependencies
         run: npm ci
@@ -53,9 +53,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-# ═════════════════════════════════════════
-#  JOB 2 ── macOS 建置
-# ═════════════════════════════════════════
+  # ═════════════════════════════════════════
+  #  JOB 2 ── macOS 建置
+  # ═════════════════════════════════════════
   build-macos:
     name: 🍎 Build macOS
     runs-on: macos-latest
@@ -67,8 +67,8 @@ jobs:
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: 📦 Install dependencies
         run: npm ci
@@ -78,17 +78,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
 
+      - name: 📝 建立 Mac 安裝輔助腳本
+        run: |
+          cat > dist/安裝後請執行此檔案.command << 'EOF'
+          #!/bin/bash
+          xattr -cr /Applications/YT-Media-Extractor.app
+          echo "✅ 完成！現在可以開啟 YT-Media-Extractor 了"
+          open /Applications/YT-Media-Extractor.app
+          EOF
+          chmod +x dist/安裝後請執行此檔案.command
+
       - name: 📤 Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-dist
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/*.command
           if-no-files-found: error
           retention-days: 1
 
-# ═════════════════════════════════════════
-#  JOB 3 ── 發佈 Release + 更新 versions.json
-# ═════════════════════════════════════════
+  # ═════════════════════════════════════════
+  #  JOB 3 ── 發佈 Release + 更新 versions.json
+  # ═════════════════════════════════════════
   release:
     name: 🎯 Publish Release
     needs: [build-windows, build-macos]
@@ -137,33 +149,33 @@ jobs:
       # ── 更新 versions.json ───────────────
       - name: 📝 更新 versions.json
         run: |
-            VERSION="${{ steps.get_version.outputs.VERSION }}"
-            APP="${{ env.APP_NAME }}"
-            TAG="${{ env.RELEASE_TAG }}"
-            REPO="${{ env.RELEASE_REPO }}"
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          APP="${{ env.APP_NAME }}"
+          TAG="${{ env.RELEASE_TAG }}"
+          REPO="${{ env.RELEASE_REPO }}"
 
-            # 找 Windows 檔名
-            WIN_FILE=$(basename "$(ls release-files/*.exe 2>/dev/null | head -1)")
+          # 找 Windows 檔名
+          WIN_FILE=$(basename "$(ls release-files/*.exe 2>/dev/null | head -1)")
 
-            # 找 macOS 檔名
-            MAC_FILE=$(ls release-files/*.dmg 2>/dev/null | head -1 | xargs basename)
+          # 找 macOS 檔名
+          MAC_FILE=$(ls release-files/*.dmg 2>/dev/null | head -1 | xargs basename)
 
-            WIN_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_FILE}"
-            MAC_URL="https://github.com/${REPO}/releases/download/${TAG}/${MAC_FILE}"
+          WIN_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_FILE}"
+          MAC_URL="https://github.com/${REPO}/releases/download/${TAG}/${MAC_FILE}"
 
-            JSON_PATH="release-repo/yt-extractor/versions.json"
-            cat > "$JSON_PATH" << EOF
-            {
-            "${APP}": {
-                "latest_version": "${VERSION}",
-                "download_url_win": "${WIN_URL}",
-                "download_url_mac": "${MAC_URL}"
-            }
-            }
-            EOF
+          JSON_PATH="release-repo/yt-extractor/versions.json"
+          cat > "$JSON_PATH" << EOF
+          {
+          "${APP}": {
+              "latest_version": "${VERSION}",
+              "download_url_win": "${WIN_URL}",
+              "download_url_mac": "${MAC_URL}"
+          }
+          }
+          EOF
 
-            echo "✅ versions.json 已更新："
-            cat "$JSON_PATH"
+          echo "✅ versions.json 已更新："
+          cat "$JSON_PATH"
 
       # ── Git push versions.json ───────────
       - name: 📬 Commit & Push versions.json
