@@ -1,9 +1,3 @@
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  RELEASE_REPO: kapy0312/my-app-update
-  RELEASE_TAG: yt-v.latest
-  APP_NAME: YT-Media-Extractor
-
 name: 🚀 Build & Release YT-Media-Extractor
 
 on:
@@ -20,8 +14,9 @@ on:
 #  全域變數
 # ─────────────────────────────────────────
 env:
-  RELEASE_REPO: kapy0312/my-app-update # 負責發佈的 repo
-  RELEASE_TAG: yt-v.latest # 滾動式 latest tag
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RELEASE_REPO: kapy0312/my-app-update
+  RELEASE_TAG: yt-v.latest
   APP_NAME: YT-Media-Extractor
 
 # ═════════════════════════════════════════
