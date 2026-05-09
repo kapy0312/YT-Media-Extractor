@@ -97,13 +97,17 @@ jobs:
           首次啟動需下載核心組件，約需 30 秒請耐心等候。
           EOF
 
+      - name: 📦 壓縮 macOS 安裝包
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          cd dist
+          zip -r "YT-Media-Extractor.${VERSION}.macOS.arm64.zip" *.dmg *.txt
+          
       - name: 📤 Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-dist
-          path: |
-            dist/*.dmg
-            dist/*.txt
+          path: dist/*.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -167,7 +171,7 @@ jobs:
           WIN_FILE=$(basename "$(ls release-files/*.exe 2>/dev/null | head -1)")
 
           # 找 macOS 檔名
-          MAC_FILE=$(ls release-files/*.dmg 2>/dev/null | head -1 | xargs basename)
+          MAC_FILE=$(ls release-files/*.zip 2>/dev/null | head -1 | xargs basename)
 
           WIN_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_FILE}"
           MAC_URL="https://github.com/${REPO}/releases/download/${TAG}/${MAC_FILE}"
@@ -178,7 +182,7 @@ jobs:
           "${APP}": {
               "latest_version": "${VERSION}",
               "download_url_win": "${WIN_URL}",
-              "download_url_mac": "${MAC_URL}"
+              "download_url_mac_zip": "${MAC_URL}"
           }
           }
           EOF

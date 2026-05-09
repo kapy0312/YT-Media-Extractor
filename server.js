@@ -567,8 +567,8 @@ export function initBackend(mainWindow) {
                 // 👇 判斷平台，選對應載點
                 const isMac = os.platform() === 'darwin';
                 const downloadUrl = isMac
-                    ? remoteInfo.download_url_mac
-                    : remoteInfo.download_url_win;
+                    ? remoteInfo.download_url_mac_zip   // ← Mac 給 zip 壓縮包
+                    : remoteInfo.download_url_win;      // ← Windows 維持 .exe
 
                 return {
                     hasUpdate: true,
