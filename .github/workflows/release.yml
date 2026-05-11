@@ -85,17 +85,26 @@ jobs:
           YT-Media-Extractor - macOS 安裝說明
           =====================================
 
-          1. 雙擊 .dmg 檔案
-          2. 把 YT-Media-Extractor 拖進 Applications 資料夾
-          3. 到 Applications 找到 YT-Media-Extractor
-          4. 右鍵 → 打開 → 打開（首次需要這樣做）
-          5. 之後可以直接雙擊開啟
+          【安裝步驟】
 
-          如果右鍵打開還是被擋住，請開啟 Terminal 執行：
-          xattr -cr /Applications/YT-Media-Extractor.app
+          1. 雙擊 .dmg 檔案
+          2. 將 YT-Media-Extractor 拖曳至 Applications 資料夾
+          3. 開啟 Terminal，執行以下指令解除系統限制：
+             xattr -cr /Applications/YT-Media-Extractor.app
+          4. 雙擊開啟 App，之後即可正常使用
 
           =====================================
-          首次啟動需下載核心組件，約需 30 秒請耐心等候。
+
+          【首次啟動說明】
+
+          ▸ App 會自動偵測是否需要安裝系統工具 (Command Line Tools)
+            若跳出安裝提示，請點擊「安裝」，約需 3~5 分鐘
+            安裝完成後請重新啟動 App
+
+          ▸ 重啟後 App 會自動下載核心下載引擎，約需 30 秒
+            請耐心等候初始化完成即可正常使用
+
+          =====================================
           EOF
 
       - name: 📦 壓縮 macOS 安裝包
