@@ -475,6 +475,10 @@ export function initBackend(mainWindow) {
                         args.push('--merge-output-format', 'mp4');
                         args.push('--no-post-overwrites');
                     }
+                } else {
+                    // 👇 mp3 模式：強制只下載音訊流
+                    args.push('-f', 'bestaudio/best');
+                    args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0');
                 }
 
                 const ytDlpProcess = ytDlpWrap.exec(args);
