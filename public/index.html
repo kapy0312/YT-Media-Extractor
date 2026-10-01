@@ -111,7 +111,7 @@
             font-size: 0.875rem;
             white-space: pre-wrap;
             display: none;
-            max-height: 150px;
+            height: 150px;
             overflow-y: auto;
         }
 
@@ -341,8 +341,9 @@
         </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 1.5rem;">
-            <input type="text" id="url" placeholder="請貼上 YouTube 影片網址..."
-                style="flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none;">
+            <!-- 👇 【修改】改為多行輸入框，一行一個網址 -->
+            <textarea id="url" rows="3" placeholder="請貼上 YouTube 影片網址（可多行，一行一個）..."
+                style="flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; outline: none; resize: vertical; font-family: inherit; box-sizing: border-box; min-height: 48px;"></textarea>
 
             <div style="display: flex; gap: 5px;">
                 <button id="btnLogin" onclick="openLoginWindow()"
@@ -362,6 +363,11 @@
             <button id="btnMp3" style="flex: 1;" onclick="startDownload('mp3')">下載 MP3</button>
             <button id="btnMp4" style="flex: 1; background: #059669;" onclick="startDownload('mp4')">下載 MP4</button>
         </div>
+
+        <!-- 👇 【新增】停止批次按鈕（批次下載時才顯示） -->
+        <button id="btnCancel" onclick="cancelBatch()" style="display: none; background: #64748b; margin-bottom: 1rem;">
+            ⏹ 停止批次（跑完目前這筆後停止）
+        </button>
 
         <div id="progressContainer">
             <div class="progress-text">
@@ -397,7 +403,7 @@
                 appTitle: "YT-媒體下載器",
                 langBtn: "EN",
                 fixBtn: "🔧 下載失敗？點我修復",
-                placeholder: "請貼上 YouTube 影片網址...",
+                placeholder: "請貼上 YouTube 影片網址（可多行，一行一個）...",
                 login: "登入解鎖HD",
                 loggedIn: "✅ 已登入 (解鎖HD)",
                 loggingIn: "等待登入中...",
@@ -418,7 +424,18 @@
                 downloadComplete: "✅ 下載完成！請至 Downloads 資料夾查看。",
                 pathLabel: "📁 儲存位置",
                 btnChangePath: "變更目錄",
-                multiUrlWarning: "⚠️ 本系統為確保穩定度，僅支援單次下載「單一網址」！\n請勿同時輸入多個網址。",
+                // 👇 【新增】批次下載相關文字
+                noValidUrl: "❌ 沒有偵測到有效的 YouTube 網址，請確認後再試。",
+                tooManyUrls: "⚠️ 單次最多下載 {max} 筆，請分批貼上。",
+                batchConfirm: "共 {total} 筆待下載{skipped}，確定開始嗎？",
+                batchSkipped: "（已略過 {n} 筆無效或重複網址）",
+                batchItem: "({i}/{total}) 開始下載",
+                cancelBtn: "⏹ 停止批次（跑完目前這筆後停止）",
+                cancelRequested: "⏹ 已收到停止指令，目前這筆完成後將停止。",
+                batchCookieStop: "⚠️ 登入憑證已過期，批次已中止，請重新登入後再試。",
+                batchSummary: "✅ 批次完成：成功 {ok} 筆，失敗 {fail} 筆",
+                batchFailList: "失敗網址：",
+                batchCancelled: "（已手動停止，剩餘 {left} 筆未下載）",
                 errPrivate: "🔒 此影片為私人影片、已遭刪除或為版權限制內容。",
                 errRegion: "🌍 此影片受地區限制，請嘗試在您的電腦掛載 VPN 後再試。",
                 errMember: "👑 此為會員專屬影片！請確認您的 YouTube 帳號具備該頻道會員資格，並重新登入軟體。",
@@ -432,8 +449,6 @@
                 loginYT: "登入 YT",
                 logoutYT: "登出帳號",
                 loginWarning: "⚠️ 即將開啟 YouTube 登入視窗！\n\n請在登入完成且視窗「自動關閉」前，【請勿手動關閉視窗】，系統需要一點時間在背景安全擷取您的登入憑證。",
-                eulaTitle: "📝 免責聲明與隱私權政策",
-                // 👇 新增的中文免責聲明
                 eulaTitle: "📝 免責聲明與隱私權政策",
                 eulaContent: `
                 <strong>1. 授權與用途限制</strong><br>
@@ -452,7 +467,7 @@
                 appTitle: "YT-Media-Extractor",
                 langBtn: "繁",
                 fixBtn: "🔧 Fix Download?",
-                placeholder: "Paste YouTube URL here...",
+                placeholder: "Paste YouTube URLs here (one per line)...",
                 login: "Login for HD",
                 loggedIn: "✅ Logged In (HD)",
                 loggingIn: "Waiting for login...",
@@ -473,7 +488,18 @@
                 downloadComplete: "✅ Download complete! Check your Downloads folder.",
                 pathLabel: "📁 Save Location",
                 btnChangePath: "Change",
-                multiUrlWarning: "⚠️ To ensure stability, please enter only ONE URL at a time.",
+                // 👇 【新增】批次下載相關文字
+                noValidUrl: "❌ No valid YouTube URL detected. Please check and try again.",
+                tooManyUrls: "⚠️ Maximum {max} URLs per batch. Please split them up.",
+                batchConfirm: "{total} item(s) ready to download{skipped}. Start now?",
+                batchSkipped: " ({n} invalid or duplicate URL(s) skipped)",
+                batchItem: "({i}/{total}) Downloading",
+                cancelBtn: "⏹ Stop batch (after current item)",
+                cancelRequested: "⏹ Stop requested. Will stop after the current item.",
+                batchCookieStop: "⚠️ Login expired. Batch stopped — please log in again.",
+                batchSummary: "✅ Batch finished: {ok} succeeded, {fail} failed",
+                batchFailList: "Failed URLs:",
+                batchCancelled: " (stopped manually, {left} item(s) not downloaded)",
                 errPrivate: "🔒 This video is private, deleted, or copyrighted.",
                 errRegion: "🌍 Region restricted. Please try using a VPN.",
                 errMember: "👑 Members-only video! Please login with an account that has a membership.",
@@ -487,8 +513,6 @@
                 loginYT: "Login YT",
                 logoutYT: "Logout",
                 loginWarning: "⚠️ Opening YouTube login window!\n\nAfter logging in, please DO NOT close the window manually. Wait for it to close automatically so the system can securely retrieve your credentials.",
-                eulaTitle: "📝 Disclaimer & Privacy Policy",
-                // 👇 新增的英文免責聲明
                 eulaTitle: "📝 Disclaimer & Privacy Policy",
                 eulaContent: `
                 <strong>1. License and Usage Restrictions</strong><br>
@@ -510,6 +534,12 @@
         let isUserLoggedIn = false; // 記住登入狀態
 
         let currentSavePath = ''; // 儲存當前路徑
+
+        // 👇 【新增】批次下載狀態
+        const MAX_BATCH = 50;
+        let isBatchMode = false;
+        let batchCancelRequested = false;
+        let batchCookieExpired = false;
 
         // 網頁載入時，檢查登入狀態
         window.onload = async () => {
@@ -635,6 +665,7 @@
             if (document.getElementById('url')) document.getElementById('url').placeholder = t.placeholder;
             if (document.getElementById('btnMp3')) document.getElementById('btnMp3').innerText = t.dlMp3;
             if (document.getElementById('btnMp4')) document.getElementById('btnMp4').innerText = t.dlMp4;
+            if (document.getElementById('btnCancel')) document.getElementById('btnCancel').innerText = t.cancelBtn;
             if (document.getElementById('btnFix')) document.getElementById('btnFix').innerText = t.fixBtn;
             if (document.getElementById('btnLang')) document.getElementById('btnLang').innerText = t.langBtn;
             if (document.getElementById('initTitle')) document.getElementById('initTitle').innerText = t.initTitle;
@@ -728,23 +759,27 @@
         // 【補回】接收終端機日誌
         window.api.on('log', (message) => {
             const logsDiv = document.getElementById('logs');
-            logsDiv.innerHTML += `<div>${message}</div>`;
+            logsDiv.innerHTML += `<div>${escapeHtml(message)}</div>`;
             logsDiv.scrollTop = logsDiv.scrollHeight;
         });
 
         // 【補回】下載完成通知
         window.api.on('downloadComplete', () => {
             const t = i18n[currentLang];
-            alert(t.downloadComplete);
+            if (!isBatchMode) alert(t.downloadComplete); // 👈 批次模式改由結束時統一總結
             document.getElementById('progressBar').style.width = '0%';
             document.getElementById('progressPercent').innerText = '0%';
             document.getElementById('progressEta').innerText = '準備中...';
-            // 下載完成後自動隱藏進度條
-            setTimeout(() => { document.getElementById('progressContainer').style.display = 'none'; }, 2000);
+            // 下載完成後自動隱藏進度條（批次模式中不隱藏，避免高度跳動）
+            if (!isBatchMode) {
+                setTimeout(() => { document.getElementById('progressContainer').style.display = 'none'; }, 2000);
+            }
         });
 
         // 【新增】監聽 Cookie 過期訊號
         window.api.on('cookieExpired', () => {
+            batchCookieExpired = true; // 👈 通知批次迴圈中止
+
             // 彈出強烈提醒
             const t = i18n[currentLang];
             alert(t.cookieExpired);
@@ -758,7 +793,6 @@
             btnLogin.style.animation = 'pulse 1s infinite'; // 讓它閃爍吸引注意
         });
 
-        // 新增登入視窗邏輯
         // 新增登入視窗邏輯
         async function openLoginWindow() {
             const btn = document.getElementById('btnLogin');
@@ -798,47 +832,159 @@
             }
         }
 
-        // 修改 startDownload 使其接收 type 參數
+        // ==========================================
+        // 【新增】批次下載輔助函式
+        // ==========================================
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function fmt(str, vars) {
+            return str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
+        }
+
+        // 解析多行輸入：過濾空白、非 YouTube 網址、重複網址
+        function parseUrls(raw) {
+            const lines = raw.split(/[\n\r\s]+/).map(s => s.trim()).filter(Boolean);
+            const ytPattern = /^https?:\/\/(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\//i;
+            const seen = new Set();
+            const valid = [];
+            let skipped = 0;
+
+            for (const line of lines) {
+                if (!ytPattern.test(line) || seen.has(line)) {
+                    skipped++;
+                    continue;
+                }
+                seen.add(line);
+                valid.push(line);
+            }
+            return { valid, skipped };
+        }
+
+        function cancelBatch() {
+            if (!isBatchMode) return;
+            batchCancelRequested = true;
+            const t = i18n[currentLang];
+            document.getElementById('btnCancel').disabled = true;
+            logs.innerHTML += `<div style="color: #facc15;">${t.cancelRequested}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        // ==========================================
+        // 【重寫】下載主流程（單筆 / 批次共用）
+        // ==========================================
         async function startDownload(type) {
-            const urlInput = document.getElementById('url');
-            const url = urlInput.value;
-            if (!url) return;
+            const t = i18n[currentLang];
+            const { valid: urls, skipped } = parseUrls(urlInput.value);
 
-            const t = i18n[currentLang]; // 👇 【修正】必須先定義 t 才能獲取警告文字
-
-            // 👇 利用空白或換行符號切割，若陣列長度 > 1 代表有多個網址
-            if (url.split(/[\n\r\s]+/).length > 1) {
-                alert(t.multiUrlWarning);
+            if (urls.length === 0) {
+                alert(t.noValidUrl);
                 return;
+            }
+            if (urls.length > MAX_BATCH) {
+                alert(fmt(t.tooManyUrls, { max: MAX_BATCH }));
+                return;
+            }
+
+            isBatchMode = urls.length > 1;
+
+            if (isBatchMode) {
+                const skippedText = skipped > 0 ? fmt(t.batchSkipped, { n: skipped }) : '';
+                if (!confirm(fmt(t.batchConfirm, { total: urls.length, skipped: skippedText }))) {
+                    isBatchMode = false;
+                    return;
+                }
             }
 
             const btnMp3 = document.getElementById('btnMp3');
             const btnMp4 = document.getElementById('btnMp4');
+            const btnCancel = document.getElementById('btnCancel');
 
             btnMp3.disabled = true;
             btnMp4.disabled = true;
+            urlInput.disabled = true;
+            batchCancelRequested = false;
+            batchCookieExpired = false;
+
+            if (isBatchMode) {
+                btnCancel.style.display = 'block';
+                btnCancel.disabled = false;
+            }
+
             logs.style.display = 'block';
-            logs.innerText = `正在請求下載 ${type.toUpperCase()}...`;
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            progressPercent.innerText = '0%';
+            logs.style.color = ''; // 重置登入流程殘留的字體顏色
+
+            const summary = [];
+            const failed = [];
+            let okCount = 0;
+            let processed = 0;
 
             try {
-                const result = await window.api.invoke('api:download', { url: url, format: type, savePath: currentSavePath });
-            } catch (err) {
-                // 👇【修改】將原本生硬的 err.message 丟入翻譯機
-                const friendlyError = translateError(err.message || '');
-                const logsDiv = document.getElementById('logs');
+                for (let i = 0; i < urls.length; i++) {
+                    if (batchCancelRequested || batchCookieExpired) break;
 
-                logsDiv.innerHTML += `<div style="color: #f87171; font-weight: bold; margin-top: 10px;">${friendlyError.replace(/\n/g, '<br>')}</div>`;
-                logsDiv.scrollTop = logsDiv.scrollHeight;
+                    const url = urls[i];
+                    processed++;
 
-                // 彈出經過翻譯的白話文 Alert
-                alert(friendlyError);
+                    const header = isBatchMode
+                        ? `${fmt(t.batchItem, { i: i + 1, total: urls.length })} ${type.toUpperCase()}：${escapeHtml(url)}`
+                        : `正在請求下載 ${type.toUpperCase()}...`;
+
+                    // 每筆開始前清掉上一筆的細節，只保留摘要
+                    logs.innerHTML = summary.join('') + `<div style="color: #facc15;">${header}</div>`;
+                    progressContainer.style.display = 'block';
+                    progressBar.style.width = '0%';
+                    progressPercent.innerText = '0%';
+
+                    try {
+                        await window.api.invoke('api:download', { url, format: type, savePath: currentSavePath });
+                        okCount++;
+                        summary.push(`<div style="color: #86efac;">✅ (${i + 1}/${urls.length}) ${escapeHtml(url)}</div>`);
+                    } catch (err) {
+                        const friendlyError = translateError(err.message || '');
+                        failed.push(url);
+                        summary.push(`<div style="color: #f87171;">❌ (${i + 1}/${urls.length}) ${escapeHtml(url)}</div>`);
+
+                        // 單筆模式維持原本的即時錯誤提示
+                        if (!isBatchMode) {
+                            logs.innerHTML += `<div style="color: #f87171; font-weight: bold; margin-top: 10px;">${escapeHtml(friendlyError).replace(/\n/g, '<br>')}</div>`;
+                            logs.scrollTop = logs.scrollHeight;
+                            alert(friendlyError);
+                        }
+                    }
+                }
+
+                // 批次結束總結
+                if (isBatchMode) {
+                    const left = urls.length - processed;
+                    let msg = fmt(t.batchSummary, { ok: okCount, fail: failed.length });
+
+                    if (batchCookieExpired) {
+                        msg += '\n' + t.batchCookieStop;
+                    } else if (batchCancelRequested && left > 0) {
+                        msg += fmt(t.batchCancelled, { left });
+                    }
+                    if (failed.length > 0) {
+                        msg += '\n\n' + t.batchFailList + '\n' + failed.join('\n');
+                    }
+
+                    logs.innerHTML = summary.join('') +
+                        `<div style="font-weight: bold; margin-top: 8px;">${escapeHtml(msg).replace(/\n/g, '<br>')}</div>`;
+                    logs.scrollTop = logs.scrollHeight;
+                    alert(msg);
+
+                    // 失敗 + 未下載的網址留在輸入框，方便直接重試
+                    urlInput.value = failed.concat(urls.slice(processed)).join('\n');
+                }
             } finally {
-                // 👇 【修正】加入 finally 區塊，確保無論成功或失敗都會解鎖按鈕
                 btnMp3.disabled = false;
                 btnMp4.disabled = false;
+                urlInput.disabled = false;
+                btnCancel.style.display = 'none';
+                isBatchMode = false;
             }
         }
 
@@ -901,7 +1047,7 @@
             updateUI();
         }
 
-        // 頁面載入時檢查上次的語系設定F
+        // 頁面載入時檢查上次的語系設定
         window.addEventListener('DOMContentLoaded', async () => {
             const savedLang = localStorage.getItem('preferredLang');
             if (savedLang && savedLang !== currentLang) {
@@ -922,7 +1068,6 @@
                 try {
                     const updateInfo = await window.api.invoke('api:check-update');
                     if (updateInfo && updateInfo.hasUpdate) {
-                        const t = i18n[currentLang];
                         const isZh = (currentLang === 'zh');
 
                         const msg = isZh

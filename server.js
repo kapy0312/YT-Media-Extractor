@@ -411,7 +411,7 @@ export function initBackend(mainWindow) {
     // 8. 下載功能 API
     ipcMain.handle('api:download', async (event, { url, format, savePath }) => {
         // 👇 [新增] 後端防護鎖，拒絕同時下載
-        if (isDownloading) return { success: false, error: '目前已有下載任務正在進行中。' };
+        if (isDownloading) throw new Error('目前已有下載任務正在進行中。');
         isDownloading = true;
 
         return new Promise((resolve, reject) => {
