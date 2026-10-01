@@ -10,6 +10,10 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: release-yt-extractor
+  cancel-in-progress: false
+
 # ─────────────────────────────────────────
 #  全域變數
 # ─────────────────────────────────────────
@@ -40,7 +44,7 @@ jobs:
       - name: 📦 Install dependencies
         run: npm ci
 
-      - name: 🔨 Build Windows (.exe + .7z)
+      - name: 🔨 Build Windows (.exe)
         run: npm run build
         env:
           GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
@@ -112,7 +116,7 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           cd dist
           zip -r "YT-Media-Extractor.${VERSION}.macOS.arm64.zip" *.dmg *.txt
-          
+
       - name: 📤 Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -161,6 +165,49 @@ jobs:
       - name: 📋 列出所有 release 檔案
         run: ls -lh release-files/
 
+      # ── 刪除舊 Release / Tag（滾動更新）──
+      - name: 🗑️ 刪除舊 Release & Tag
+        env:
+          GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
+        run: |
+          TAG="${{ env.RELEASE_TAG }}"
+          REPO="${{ env.RELEASE_REPO }}"
+
+          # 嘗試刪除舊 release（若不存在忽略錯誤）
+          gh release delete "$TAG" --repo "$REPO" --yes 2>/dev/null || true
+
+          # 嘗試刪除舊 tag
+          gh api -X DELETE "repos/${REPO}/git/refs/tags/${TAG}" 2>/dev/null || true
+
+          echo "✅ 舊 Release 清除完畢"
+
+      # ── 建立新 Release ───────────────────
+      - name: 🚀 建立 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          TAG="${{ env.RELEASE_TAG }}"
+          REPO="${{ env.RELEASE_REPO }}"
+
+          # 讀取 RELEASE_NOTES.md（不存在時使用預設內容），並在結尾附上建置時間
+          [ -f RELEASE_NOTES.md ] || echo "## 🎉 ${{ env.APP_NAME }} v${VERSION}" > RELEASE_NOTES.md
+          {
+            cat RELEASE_NOTES.md
+            echo ""
+            echo "---"
+            echo "Built by GitHub Actions · $(date -u '+%Y-%m-%d %H:%M UTC')"
+          } > release-notes.md
+
+          gh release create "$TAG" \
+            --repo "$REPO" \
+            --title "${{ env.APP_NAME }} v${VERSION}" \
+            --notes-file release-notes.md \
+            --latest \
+            release-files/*
+
+          echo "✅ Release 發佈完成！"
+
       # ── Checkout 發佈 repo ───────────────
       - name: ⬇️ Checkout 發佈 repo (${{ env.RELEASE_REPO }})
         uses: actions/checkout@v4
@@ -169,7 +216,7 @@ jobs:
           token: ${{ secrets.YTmedia_Release_Token }}
           path: release-repo
 
-      # ── 更新 versions.json ───────────────
+      # ── 更新 versions.json（Release 成功後才執行）──
       - name: 📝 更新 versions.json
         run: |
           VERSION="${{ steps.get_version.outputs.VERSION }}"
@@ -210,47 +257,3 @@ jobs:
           git diff --cached --quiet && echo "⏭️ 無變更，跳過 commit" || \
             git commit -m "chore: bump ${{ env.APP_NAME }} to v${{ steps.get_version.outputs.VERSION }}"
           git push
-
-      # ── 刪除舊 Release / Tag（滾動更新）──
-      - name: 🗑️ 刪除舊 Release & Tag
-        env:
-          GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
-        run: |
-          TAG="${{ env.RELEASE_TAG }}"
-          REPO="${{ env.RELEASE_REPO }}"
-
-          # 嘗試刪除舊 release（若不存在忽略錯誤）
-          gh release delete "$TAG" --repo "$REPO" --yes 2>/dev/null || true
-
-          # 嘗試刪除舊 tag
-          gh api -X DELETE "repos/${REPO}/git/refs/tags/${TAG}" 2>/dev/null || true
-
-          echo "✅ 舊 Release 清除完畢"
-
-      # ── 建立新 Release ───────────────────
-      - name: 🚀 建立 GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.YTmedia_Release_Token }}
-        run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          TAG="${{ env.RELEASE_TAG }}"
-          REPO="${{ env.RELEASE_REPO }}"
-
-          gh release create "$TAG" \
-            --repo "$REPO" \
-            --title "${{ env.APP_NAME }} v${VERSION}" \
-            --notes "## 🎉 ${{ env.APP_NAME }} v${VERSION}
-
-          ### 📥 下載說明
-          - **Windows**：下載 `.exe` 安裝包
-          - **macOS**：下載 \`.dmg\` 映像檔（支援 Intel / Apple Silicon M1/M2/M3）
-
-          ### 🔄 自動更新
-          本 Release 採用滾動更新機制，tag \`${TAG}\` 永遠指向最新版本。
-
-          ---
-          Built by GitHub Actions · $(date -u '+%Y-%m-%d %H:%M UTC')" \
-            --latest \
-            release-files/*
-
-          echo "✅ Release 發佈完成！"
